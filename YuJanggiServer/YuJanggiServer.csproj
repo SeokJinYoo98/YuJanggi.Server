@@ -2,8 +2,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="YuJanggi.Server.Tests" />
-    <Reference Include="YuJanggiCommon"><HintPath>..\lib\YuJanggiCommon\YuJanggiCommon.dll</HintPath><Private>true</Private></Reference>
-    <ProjectReference Include="..\Core\YuJanggi.Core.csproj" />
+    <PackageReference Include="YuJanggi.Protocol" Version="[1.0.0]" />
+    <PackageReference Include="YuJanggi.Core" Version="[0.1.0]" />
   </ItemGroup>
 
   <PropertyGroup>

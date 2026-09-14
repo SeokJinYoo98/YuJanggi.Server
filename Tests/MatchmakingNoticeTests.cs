@@ -184,6 +184,24 @@ public sealed class MatchmakingNoticeTests
             Assert.AreEqual(GameFormation.EHEH, choStart.HanFormation);
             Assert.AreEqual(choStart.ChoFormation, hanStart.ChoFormation);
             Assert.AreEqual(choStart.HanFormation, hanStart.HanFormation);
+            // 배포된 Core/Protocol 조합으로 이동 전파와 종료까지 검증합니다.
+            var from = new BoardPosition(0, 3);
+            await Send(cho, MessageType.LegalMovesRequest, new LegalMovesRequest(from), token);
+            var legal = await Receive<LegalMovesResult>(cho, MessageType.LegalMovesResult, token);
+            Assert.IsTrue(legal.LegalMoves.Count > 0);
+            var to = legal.LegalMoves[0];
+            await Send(cho, MessageType.MoveRequest, new MoveRequest(from, to), token);
+            var choMove = await Receive<MoveResultEvent>(cho, MessageType.MoveResult, token);
+            var hanMove = await Receive<MoveResultEvent>(han, MessageType.MoveResult, token);
+            Assert.AreEqual(choMatch.GameId, choMove.GameId);
+            Assert.AreEqual(PlayerSide.Han, choMove.CurrentTurn);
+            Assert.AreEqual(to, choMove.To);
+            Assert.AreEqual(choMove.To, hanMove.To);
+            CollectionAssert.AreEqual(choMove.Pieces.ToArray(), hanMove.Pieces.ToArray());
+            choClient.Close();
+            var ended = await Receive<GameEndEvent>(han, MessageType.GameEnd, token);
+            Assert.AreEqual(hanMatch.GameId, ended.GameId);
+            Assert.AreEqual(GameEndReason.OpponentLeft, ended.Reason);
         }
         finally
         {

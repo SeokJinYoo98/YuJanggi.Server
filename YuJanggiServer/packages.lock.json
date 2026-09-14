@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "YuJanggi.Core": {
+        "type": "Direct",
+        "requested": "[0.1.0, 0.1.0]",
+        "resolved": "0.1.0",
+        "contentHash": "1aqV/ZGtbGsyrINH6ym77XHN00ftETePltnMn4TYXuNSSuhSpT5LkXuXxAPJHW7nnI1Px0unLgIU2pwD6C0+5Q=="
+      },
+      "YuJanggi.Protocol": {
+        "type": "Direct",
+        "requested": "[1.0.0, 1.0.0]",
+        "resolved": "1.0.0",
+        "contentHash": "qV6b6F+5OvTnt4EU9/oD9O4wZdMLvBW0TqDsjwrfvojNAVR4qWqaK7bUk+lPbXRO2PnmKv95HmG02QphuCM16A=="
+      }
+    }
+  }
+}

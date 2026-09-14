@@ -247,10 +247,10 @@ sequenceDiagram
 
 Git과 .NET SDK 10이 필요합니다.
 
-저장소를 받을 때 Core submodule을 함께 내려받습니다.
+저장소를 받은 뒤 아래 공용 패키지 인증을 설정합니다.
 
 ```powershell
-git clone --recurse-submodules https://github.com/SeokJinYoo98/YuJanggi.Server.git
+git clone https://github.com/SeokJinYoo98/YuJanggi.Server.git
 cd YuJanggi.Server
 ```
 
@@ -298,8 +298,26 @@ JSON 본문의 최대 크기는 4 KiB입니다.
 
 - 정상 종료, 기권, 시간패의 전체 네트워크 흐름은 추가 구현이 필요합니다.
 
-- Core는 Git submodule로 관리하므로 Unity와 같은 검증된 커밋을 사용해야 합니다.
+- Core는 NuGet으로 참조하며 Unity UPM과 동일한 배포 소스 버전을 사용해야 합니다.
 
-## 공용 통신 계약 DLL
+## 공용 패키지
 
-통신 계약 소스는 별도 로컬 저장소 D:\Git\YuJanggi.Protocol에서 관리합니다. 서버와 콘솔 클라이언트는 lib/YuJanggiCommon의 .NET 10 DLL을 사용합니다. 기존 YuJanggiCommon 소스 프로젝트는 제거했습니다. Protocol 저장소의 Publish-Protocol.ps1로 서버·Unity DLL과 protocol-version.json을 함께 갱신하고, 서버 테스트를 실행한 뒤 관련 산출물을 함께 커밋합니다.
+서버는 GitHub Packages의 YuJanggi.Core 0.1.0과 YuJanggi.Protocol 1.0.0을 사용하며, 콘솔 클라이언트는 Protocol 1.0.0을 사용합니다. csproj의 정확한 버전 지정과 packages.lock.json을 함께 갱신합니다. Unity는 Core v0.1.0 / Protocol upm/v1.0.0 태그를 사용해야 합니다.
+
+nuget.config에는 소스 주소와 패키지 매핑만 있습니다. 개발 PC에서 GitHub PAT classic(read:packages)을 사용자 NuGet 설정에 등록하세요. Windows PowerShell 7 예시:
+
+```powershell
+$packageToken = Read-Host "GitHub PAT" -MaskInput
+dotnet nuget add source "https://nuget.pkg.github.com/SeokJinYoo98/index.json" --name github --username SeokJinYoo98 --password $packageToken
+Remove-Variable packageToken
+```
+
+사용자 설정에 github가 이미 있으면 add 대신 update source github를 사용합니다. 토큰을 저장소 nuget.config에 쓰지 마세요. CI에서는 패키지 읽기 권한을 부여하고 NuGetPackageSourceCredentials_github 환경 변수로 인증을 전달합니다.
+
+```powershell
+dotnet restore ./YuJanggiServer.sln --locked-mode
+dotnet restore ./Tests/YuJanggi.Server.Tests.csproj --locked-mode
+dotnet test ./Tests/YuJanggi.Server.Tests.csproj -c Release --no-restore
+```
+
+기존 Core 서브모듈은 로컬 변경 보존을 위해 남아 있으나 빌드·솔루션 참조에서 제외했습니다. 수동 Protocol DLL 복사는 더 이상 사용하지 않습니다. 패키지 변경 시 참가·매칭·포진·이동·상대 연결 종료 통합 테스트를 실행하세요.
