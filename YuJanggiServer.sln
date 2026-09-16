@@ -5,8 +5,6 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YuJanggiServer", "YuJanggiServer\YuJanggiServer.csproj", "{A88DD8F2-7974-4B4E-BF2E-4ACC7F2395EE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YuJanggiClient", "YuJanggiClient\YuJanggiClient.csproj", "{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,18 +27,6 @@ Global
 		{A88DD8F2-7974-4B4E-BF2E-4ACC7F2395EE}.Release|x64.Build.0 = Release|Any CPU
 		{A88DD8F2-7974-4B4E-BF2E-4ACC7F2395EE}.Release|x86.ActiveCfg = Release|Any CPU
 		{A88DD8F2-7974-4B4E-BF2E-4ACC7F2395EE}.Release|x86.Build.0 = Release|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Debug|x64.Build.0 = Debug|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Debug|x86.Build.0 = Debug|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Release|Any CPU.Build.0 = Release|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Release|x64.ActiveCfg = Release|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Release|x64.Build.0 = Release|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Release|x86.ActiveCfg = Release|Any CPU
-		{49A9AF33-E75A-4DB4-9918-56E423E4E9B9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
