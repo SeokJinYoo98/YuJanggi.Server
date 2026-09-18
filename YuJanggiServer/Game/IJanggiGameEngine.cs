@@ -1,6 +1,6 @@
 using YuJanggiCommon;
 
-namespace YuJanggiServer.Game;
+namespace YuJanggi.Server.Game;
 
 public sealed record EngineMoveResult(
     BoardPosition From,

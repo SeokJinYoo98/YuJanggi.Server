@@ -1,6 +1,6 @@
-using YuJanggiServer.Models;
+namespace YuJanggi.Server.Game;
 
-namespace YuJanggiServer.Game;
+using Models;
 
 public interface IGameSessionFactory
 {

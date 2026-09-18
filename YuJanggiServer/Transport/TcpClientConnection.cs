@@ -1,7 +1,6 @@
 using System.Net.Sockets;
 using YuJanggiCommon;
-
-namespace YuJanggiServer.Transport;
+namespace YuJanggi.Server.Transport;
 
 public sealed class TcpClientConnection : IClientConnection
 {

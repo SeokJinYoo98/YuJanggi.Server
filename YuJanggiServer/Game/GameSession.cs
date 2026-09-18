@@ -1,7 +1,8 @@
 using YuJanggiCommon;
-using YuJanggiServer.Models;
 
-namespace YuJanggiServer.Game;
+namespace YuJanggi.Server.Game;
+
+using Models;
 
 public sealed class GameSession
 {

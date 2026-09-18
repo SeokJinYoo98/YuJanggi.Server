@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace YuJanggiServer.Transport;
+namespace YuJanggi.Server.Transport;
 
 public sealed class TcpConnectionListener : IConnectionListener
 {

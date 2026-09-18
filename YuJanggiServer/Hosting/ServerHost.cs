@@ -1,14 +1,14 @@
 using System.Net.Sockets;
 using System.Text.Json;
 using YuJanggiCommon;
-using YuJanggiServer.Controllers;
-using YuJanggiServer.Game;
-using YuJanggiServer.Models;
-using YuJanggiServer.Transport;
-using YuJanggiServer.Views;
 
-namespace YuJanggiServer.Hosting;
+namespace YuJanggi.Server.Hosting;
 
+using Controllers;
+using Game;
+using Models;
+using Transport;
+using Views;
 public sealed class ServerHost
 {
     private readonly IConnectionListener _listener;

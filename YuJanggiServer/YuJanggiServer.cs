@@ -1,6 +1,6 @@
-using YuJanggiServer.Hosting;
+namespace YuJanggi.Server;
 
-namespace YuJanggiServer;
+using Hosting;
 
 public sealed class YuJanggiServer
 {

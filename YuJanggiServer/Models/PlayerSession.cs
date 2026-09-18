@@ -1,7 +1,8 @@
 using YuJanggiCommon;
-using YuJanggiServer.Transport;
 
-namespace YuJanggiServer.Models;
+namespace YuJanggi.Server.Models;
+
+using Transport;
 
 public sealed class PlayerSession : IDisposable
 {

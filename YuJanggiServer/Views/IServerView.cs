@@ -1,8 +1,9 @@
 using YuJanggiCommon;
-using YuJanggiServer.Game;
-using YuJanggiServer.Models;
 
-namespace YuJanggiServer.Views;
+namespace YuJanggi.Server.Views;
+
+using Game;
+using Models;
 
 public interface IServerView
 {

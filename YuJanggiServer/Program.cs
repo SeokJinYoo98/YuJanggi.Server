@@ -1,4 +1,4 @@
-using ServerHost = YuJanggiServer.YuJanggiServer;
+using ServerHost = YuJanggi.Server.YuJanggiServer;
 public static class Program
 {
     public static async Task Main(string[] args)

@@ -1,7 +1,7 @@
 using YuJanggiCommon;
-using YuJanggiServer.Game;
+namespace YuJanggi.Server.Models;
 
-namespace YuJanggiServer.Models;
+using Game;
 
 public sealed record JoinModelResult(ErrorCode? Error, Guid PlayerId);
 

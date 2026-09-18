@@ -1,4 +1,4 @@
-namespace YuJanggiServer.Transport;
+namespace YuJanggi.Server.Transport;
 
 public interface IConnectionListener
 {

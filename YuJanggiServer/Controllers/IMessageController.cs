@@ -1,7 +1,8 @@
 using YuJanggiCommon;
-using YuJanggiServer.Models;
 
-namespace YuJanggiServer.Controllers;
+namespace YuJanggi.Server.Controllers;
+
+using Models;
 
 public interface IMessageController
 {

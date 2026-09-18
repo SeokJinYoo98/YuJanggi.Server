@@ -3,7 +3,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="YuJanggi.Server.Tests" />
     <PackageReference Include="YuJanggi.Protocol" Version="[1.0.0]" />
-    <PackageReference Include="YuJanggi.Core" Version="[0.1.0]" />
+    <PackageReference Include="YuJanggi.Core" Version="[1.0.0]" />
   </ItemGroup>
 
   <PropertyGroup>

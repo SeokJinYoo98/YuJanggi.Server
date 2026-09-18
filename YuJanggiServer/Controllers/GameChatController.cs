@@ -1,11 +1,12 @@
 using System.Text.Json;
 using YuJanggiCommon;
-using YuJanggiServer.Game;
-using YuJanggiServer.Models;
-using YuJanggiServer.Views;
 
-namespace YuJanggiServer.Controllers;
 
+namespace YuJanggi.Server.Controllers;
+
+using Game;
+using Models;
+using Views;
 public sealed class GameChatController : IMessageController
 {
     public IReadOnlyCollection<MessageType> SupportedTypes { get; } =

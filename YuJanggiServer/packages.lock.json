@@ -4,9 +4,9 @@
     "net10.0": {
       "YuJanggi.Core": {
         "type": "Direct",
-        "requested": "[0.1.0, 0.1.0]",
-        "resolved": "0.1.0",
-        "contentHash": "1aqV/ZGtbGsyrINH6ym77XHN00ftETePltnMn4TYXuNSSuhSpT5LkXuXxAPJHW7nnI1Px0unLgIU2pwD6C0+5Q=="
+        "requested": "[1.0.0, 1.0.0]",
+        "resolved": "1.0.0",
+        "contentHash": "VCdPcpL5v/dcPbBOf5UQb7OBo3l4AQOYNCgyKhp7rc5J5iJJ3J3InxGXMew67R6SIMLpe+mO36AgFZ6lTttCiA=="
       },
       "YuJanggi.Protocol": {
         "type": "Direct",

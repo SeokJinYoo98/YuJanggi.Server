@@ -1,12 +1,14 @@
 using YuJanggiCommon;
-using Yujanggi.Core.Board;
-using Yujanggi.Core.Domain;
-using Yujanggi.Core.Match;
-using Yujanggi.Core.Rule;
-using CorePieceType = Yujanggi.Core.Domain.PieceType;
-using CorePlayerTeam = Yujanggi.Core.Domain.PlayerTeam;
 
-namespace YuJanggiServer.Game;
+namespace YuJanggi.Server.Game;
+
+using Core.Board;
+using Core.Domain;
+using Core.Match;
+using Core.Rule;
+
+using CorePieceType = Core.Domain.PieceType;
+using CorePlayerTeam = Core.Domain.PlayerTeam;
 
 public sealed class JanggiCoreEngine : IJanggiGameEngine
 {

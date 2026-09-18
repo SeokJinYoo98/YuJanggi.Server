@@ -1,8 +1,10 @@
 using YuJanggiCommon;
-using YuJanggiServer.Models;
-using YuJanggiServer.Views;
 
-namespace YuJanggiServer.Controllers;
+
+namespace YuJanggi.Server.Controllers;
+
+using Models;
+using Views;
 
 public sealed class MessageDispatcher
 {
