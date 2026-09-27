@@ -7,15 +7,15 @@ namespace YuJanggi.Server.V2.Handlers
     using Protocol.V2.Messages;
     using Protocol.V2.Messages.MessageFactory;
     using ClientSession;
-    using GameRoom;
-    /// <summary>인게임 요청을 해석하고 게임룸에 처리를 위임합니다.</summary>
+    using InGame;
+    /// <summary>인게임 Protocol 요청을 검증하고 서비스 결과를 메시지로 생성·전송합니다.</summary>
     internal sealed class GameHandler : IMessageHandler
     {
-        private readonly GameRoomManager _gameRoomManager;
+        private readonly GameService _gameService;
 
-        public GameHandler(GameRoomManager gameRoomManager)
+        public GameHandler(GameService gameService)
         {
-            _gameRoomManager = gameRoomManager;
+            _gameService = gameService;
         }
         public Task HandleAsync(
             IClientSession session, ClientMessage message,
@@ -68,12 +68,8 @@ namespace YuJanggi.Server.V2.Handlers
 
             _ = message.GetPayload<GameSceneReadyRequest>();
 
-            var room =
-                _gameRoomManager.GetRoomBySession(session)
-                ?? throw new InvalidOperationException(
-                    "참가 중인 게임룸이 없습니다.");
-
-            if (!room.MarkPlayerReady(session))
+            var room = _gameService.MarkPlayerReady(session);
+            if (room is null)
                 return;
 
             var started =

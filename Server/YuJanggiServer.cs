@@ -10,6 +10,7 @@ namespace YuJanggi.Server.V2.Server
     using YuJanggi.Server.V2.ClientSession;
     using YuJanggi.Server.V2.Matching;
     using YuJanggi.Server.V2.GameRoom;
+    using YuJanggi.Server.V2.InGame;
 
     /// <summary>
     /// 유장기 서버의 실행 및 클라이언트 연결 수락을 관리합니다.
@@ -28,6 +29,7 @@ namespace YuJanggi.Server.V2.Server
         private readonly ClientSessionManager   _sessionManager;
         private readonly GameRoomManager _gameRoomManager;
         private readonly MatchMakingService _matchMakingService;
+        private readonly GameService _gameService;
         private readonly Lock _roomSync = new();
 
         private readonly Dictionary<ClientMessageType, IMessageHandler> _handlers;
@@ -47,6 +49,7 @@ namespace YuJanggi.Server.V2.Server
 
             _gameRoomManager = new GameRoomManager(_sessionManager, _roomSync);
             _matchMakingService = new MatchMakingService(_gameRoomManager);
+            _gameService = new GameService(_gameRoomManager);
             _handlers = CreateHandlers();
         }
 
@@ -54,7 +57,7 @@ namespace YuJanggi.Server.V2.Server
         {
             var handshakeHandler = new ProtocolHandshakeHandler();
             var matchingHandler = new MatchingHandler(_matchMakingService);
-            var gameHandler = new GameHandler(_gameRoomManager);
+            var gameHandler = new GameHandler(_gameService);
 
             return
                 new Dictionary<ClientMessageType, IMessageHandler>
