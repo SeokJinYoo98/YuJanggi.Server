@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-	  <PackageReference Include="YuJanggi.Protocol.V2" Version="0.8.0" />
+	  <PackageReference Include="YuJanggi.Protocol.V2" Version="0.9.0" />
 	  <PackageReference Include="YuJanggi.Core.V2" Version="1.1.0" />
   </ItemGroup>
 
