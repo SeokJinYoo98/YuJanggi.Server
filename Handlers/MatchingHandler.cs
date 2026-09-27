@@ -22,17 +22,22 @@ namespace YuJanggi.Server.V2.Handlers
         }
 
         public Task HandleAsync(
-            IClientSession session, ClientMessage message, CancellationToken cancellationToken)
+            IClientSession session, ClientMessage message, 
+            CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ValidateMessage(message);
 
             return message.Type switch
             {
-                ClientMessageType.MatchingRequest => HandleRequestAsync(session, message.RequestId!, cancellationToken),
-                ClientMessageType.MatchingCancelRequest => HandleCancelAsync(session, message.RequestId!, cancellationToken),
-                ClientMessageType.FormationSubmit => HandleFormationSubmitAsync(session, message, cancellationToken),
-                _ => throw new InvalidOperationException($"매칭·포진 메시지가 아닙니다: {message.Type}")
+                ClientMessageType.MatchingRequest 
+                        => HandleRequestAsync(session, message.RequestId!, cancellationToken),
+                ClientMessageType.MatchingCancelRequest 
+                        => HandleCancelAsync(session, message.RequestId!, cancellationToken),
+                ClientMessageType.FormationSubmit 
+                        => HandleFormationSubmitAsync(session, message, cancellationToken),
+                _ 
+                        => throw new InvalidOperationException($"매칭·포진 메시지가 아닙니다: {message.Type}")
             };
         }
 
