@@ -2,11 +2,11 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text.Json;
-using YuJanggi.Protocol.V2.Framing;
-using YuJanggi.Protocol.V2.Messages;
-using YuJanggi.Protocol.V2.Matching;
-using YuJanggi.Protocol.V2.Connection;
-using YuJanggi.Protocol.V2.Serialization;
+using YuJanggi.Protocol.Framing;
+using YuJanggi.Protocol.Messages;
+using YuJanggi.Protocol.Matching;
+using YuJanggi.Protocol.Connection;
+using YuJanggi.Protocol.Serialization;
 using YuJanggi.Server.V2.ClientSession;
 using YuJanggi.Server.V2.Handlers;
 using YuJanggi.Server.V2.GameRoom;
@@ -49,8 +49,8 @@ await Run("Handshake 전 거절 및 성공 후 신청", async () =>
         Type = ClientMessageType.ProtocolHandshake, RequestId = "handshake",
         Payload = JsonSerializer.SerializeToElement(new ProtocolHandshakeRequest
         {
-            YuJanggiProtocolVersion = YuJanggi.Protocol.V2.ProtocolVersion.Current,
-            YuJanggiCoreVersion = YuJanggi.Core.CoreVersion.Current
+            YuJanggiProtocolVersion = YuJanggi.Protocol.ProtocolVersion.Current,
+            YuJanggiCoreVersion = YuJanggi.Engine.CoreVersion.Current
         })
     }, token);
     Check((await peer.Read(token)).Type == ServerMessageType.ProtocolHandshake);

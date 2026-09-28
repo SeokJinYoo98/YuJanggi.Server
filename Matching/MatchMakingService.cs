@@ -1,5 +1,6 @@
-using YuJanggi.Core.V2.Domain;
-using YuJanggi.Protocol.V2.Matching;
+
+using YuJanggi.Protocol.Matching;
+using YuJanggi.Engine.Domain;
 
 namespace YuJanggi.Server.V2.Matching
 {

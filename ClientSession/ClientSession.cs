@@ -1,7 +1,7 @@
-﻿namespace YuJanggi.Server.V2.ClientSession
+namespace YuJanggi.Server.V2.ClientSession
 {
     using Transport;
-    using YuJanggi.Protocol.V2.Messages;
+    using YuJanggi.Protocol.Messages;
     using YuJanggi.Server.V2.View;
 
     /// <summary>

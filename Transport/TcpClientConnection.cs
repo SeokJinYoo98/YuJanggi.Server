@@ -1,13 +1,13 @@
-﻿using System;
+using System;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace YuJanggi.Server.V2.Transport
 {
-    using Protocol.V2.Framing;
-    using Protocol.V2.Messages;
-    using Protocol.V2.Serialization;
+    using Protocol.Framing;
+    using Protocol.Messages;
+    using Protocol.Serialization;
     /// <summary>
     /// TCP 클라이언트 한 명과의 연결 및 메시지 송수신을 담당합니다.
     /// </summary>

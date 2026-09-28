@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 
 namespace YuJanggi.Server.V2.Server
@@ -6,7 +6,7 @@ namespace YuJanggi.Server.V2.Server
     using Handlers;
     using Transport;
     using View;
-    using YuJanggi.Protocol.V2.Messages;
+    using YuJanggi.Protocol.Messages;
     using YuJanggi.Server.V2.ClientSession;
     using YuJanggi.Server.V2.Matching;
     using YuJanggi.Server.V2.GameRoom;

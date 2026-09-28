@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
-using YuJanggi.Protocol.V2.Messages;
+using YuJanggi.Protocol.Messages;
 using YuJanggi.Server.V2.ClientSession;
 using YuJanggi.Server.V2.Transport;
 

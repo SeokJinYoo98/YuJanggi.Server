@@ -1,13 +1,10 @@
 using System.Threading;
 using System.Threading.Tasks;
-
+using YuJanggi.Engine;
 namespace YuJanggi.Server.V2.Handlers
 {
-    using Core.V2;
-
-    using Protocol.V2.Connection;
-    using Protocol.V2.Messages;
-    using Protocol.V2.Messages.MessageFactory;
+    using Protocol.Connection;
+    using Protocol.Messages;
 
     using Transport;
     using View;
@@ -67,13 +64,13 @@ namespace YuJanggi.Server.V2.Handlers
                 ProtocolHandshakeResult.Success;
 
             if (request.YuJanggiProtocolVersion !=
-                Protocol.V2.ProtocolVersion.Current)
+                Protocol.Version.Version.Current)
             {
                 result |=
                     ProtocolHandshakeResult.ProtocolVersionMismatch;
             }
 
-            if (request.YuJanggiCoreVersion != CoreVersion.Current)
+            if (request.YuJanggiCoreVersion != Engine.Version.Version.Current)
             {
                 result |=
                     ProtocolHandshakeResult.CoreVersionMismatch;
