@@ -1,13 +1,14 @@
 using System.Text.Json;
+using YuJanggi.Server.V2.Handlers;
 
 
-namespace YuJanggi.Server.V2.Handlers
+namespace YuJanggi.Server.V2.GameRoom
 {
     using Protocol.V2.InGame;
     using Protocol.V2.Messages;
     using Protocol.V2.Messages.MessageFactory;
     using ClientSession;
-    using InGame;
+
     /// <summary>인게임 Protocol 요청을 검증하고 서비스 결과를 메시지로 생성·전송합니다.</summary>
     internal sealed class GameHandler : IMessageHandler
     {

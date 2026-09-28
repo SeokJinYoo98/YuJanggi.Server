@@ -17,5 +17,9 @@
 	  <PackageReference Include="YuJanggi.Core.V2" Version="1.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="InGame\" />
+  </ItemGroup>
+
 </Project>
  

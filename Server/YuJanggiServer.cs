@@ -10,7 +10,6 @@ namespace YuJanggi.Server.V2.Server
     using YuJanggi.Server.V2.ClientSession;
     using YuJanggi.Server.V2.Matching;
     using YuJanggi.Server.V2.GameRoom;
-    using YuJanggi.Server.V2.InGame;
 
     /// <summary>
     /// 유장기 서버의 실행 및 클라이언트 연결 수락을 관리합니다.

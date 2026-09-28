@@ -1,7 +1,6 @@
-namespace YuJanggi.Server.V2.InGame
+namespace YuJanggi.Server.V2.GameRoom
 {
     using ClientSession;
-    using GameRoom;
 
     /// <summary>인게임 유스케이스를 조정하며 상태 전환은 게임룸에 위임합니다.</summary>
     internal sealed class GameService
