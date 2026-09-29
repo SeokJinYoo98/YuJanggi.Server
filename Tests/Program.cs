@@ -22,12 +22,12 @@ await Run("신청·중복·취소·재신청·FIFO·동일 세션 방어", async
     using var second = await Peer.Create();
     await using var rooms = CreateRoomManager(first.Session);
     var service = new MatchMakingService(rooms);
-    Check(service.RequestMatch(first.Session, out var pair) == MatchingResult.Accepted && pair is null);
-    Check(service.RequestMatch(first.Session, out pair) == MatchingResult.AlreadyMatching && pair is null);
-    Check(service.CancelMatch(first.Session) == MatchingCancelResult.Cancelled);
-    Check(service.CancelMatch(first.Session) == MatchingCancelResult.Cancelled);
-    Check(service.RequestMatch(first.Session, out _) == MatchingResult.Accepted);
-    Check(service.RequestMatch(second.Session, out pair) == MatchingResult.Accepted);
+    Check(service.RequestMatch(first.Session, out var pair) == MatchRequestStatus.Accepted && pair is null);
+    Check(service.RequestMatch(first.Session, out pair) == MatchRequestStatus.AlreadyMatching && pair is null);
+    Check(service.CancelMatch(first.Session) == MatchCancelStatus.Cancelled);
+    Check(service.CancelMatch(first.Session) == MatchCancelStatus.Cancelled);
+    Check(service.RequestMatch(first.Session, out _) == MatchRequestStatus.Accepted);
+    Check(service.RequestMatch(second.Session, out pair) == MatchRequestStatus.Accepted);
     Check(pair?.First == first.Session && pair.Second == second.Session);
     Check(pair!.First.ClientId != pair.Second.ClientId);
     var queue = new MatchMakingQueue();
@@ -84,6 +84,34 @@ await Run("동시 신청에서 양쪽 응답 후 같은 매치의 진영별 Matc
     Check(found1.GetPayload<MatchingFound>().Opponent.PlayerId == second.Session.ClientId.ToString());
     Check(found2.GetPayload<MatchingFound>().Opponent.PlayerId == first.Session.ClientId.ToString());
 });
+await Run("포진 제출은 응답 없이 처리하고 양측 완료 시 GameReady 전송", async () =>
+{
+    using var first = await Peer.Create();
+    using var second = await Peer.Create();
+    await using var rooms = CreateRoomManager(first.Session, second.Session);
+    var handler = new MatchingHandler(new MatchMakingService(rooms));
+    await handler.HandleAsync(first.Session, Request("first"), token);
+    Check((await first.Read(token)).RequestId == "first");
+    await handler.HandleAsync(second.Session, Request("second"), token);
+    Check((await second.Read(token)).RequestId == "second");
+    var foundFirst = await first.Read(token);
+    var foundSecond = await second.Read(token);
+    string matchId = foundFirst.GetPayload<MatchingFound>().MatchId;
+    Check(matchId == foundSecond.GetPayload<MatchingFound>().MatchId);
+
+    await handler.HandleAsync(first.Session, Formation("other-match", ProtocolFormation.HEHE), token);
+    await handler.HandleAsync(first.Session, Formation(matchId, ProtocolFormation.HEHE), token);
+    Check(!first.Client.GetStream().DataAvailable && !second.Client.GetStream().DataAvailable);
+    await handler.HandleAsync(second.Session, Formation(matchId, ProtocolFormation.EHEH), token);
+
+    var readyFirst = await first.Read(token);
+    var readySecond = await second.Read(token);
+    Check(readyFirst.Type == ServerMessageType.GameReady && readySecond.Type == ServerMessageType.GameReady);
+    Check(readyFirst.RequestId is null && readySecond.RequestId is null);
+    Check(readyFirst.GetPayload<GameReadyEvent>().MatchId == matchId);
+    Check(readyFirst.GetPayload<GameReadyEvent>().ChoFormation == ProtocolFormation.HEHE);
+    Check(readySecond.GetPayload<GameReadyEvent>().HanFormation == ProtocolFormation.EHEH);
+});
 await Run("취소 응답 및 대기 중 연결 종료 정리", async () =>
 {
     using var first = await Peer.Create();
@@ -104,12 +132,12 @@ await Run("취소 응답 및 대기 중 연결 종료 정리", async () =>
     first.Client.Dispose();
     await processing.WaitAsync(token);
     Check(!sessions.Contains(first.Session.ClientId));
-    Check(service.RequestMatch(second.Session, out var pair) == MatchingResult.Accepted && pair is null);
+    Check(service.RequestMatch(second.Session, out var pair) == MatchRequestStatus.Accepted && pair is null);
     // 세션 목록이 이미 비워진 서버 종료 경로에서도 큐 정리가 실행되어야 합니다.
     await ((Task)typeof(YuJanggiServer).GetMethod("DisconnectClient", BindingFlags.Instance | BindingFlags.NonPublic)!
         .Invoke(server, [second.Session])!).WaitAsync(token);
     using var third = await Peer.Create();
-    Check(service.RequestMatch(third.Session, out pair) == MatchingResult.Accepted && pair is null);
+    Check(service.RequestMatch(third.Session, out pair) == MatchRequestStatus.Accepted && pair is null);
 });
 await Run("진입 전 토큰 취소 시 큐 미등록", async () =>
 {
@@ -181,10 +209,10 @@ await Run("다수 동시 신청의 원자성과 중복 방어", async () =>
         Check(pair is null);
         return result;
     })));
-    Check(results.Count(r => r == MatchingResult.Accepted) == 1);
-    Check(results.Count(r => r == MatchingResult.AlreadyMatching) == 31);
+    Check(results.Count(r => r == MatchRequestStatus.Accepted) == 1);
+    Check(results.Count(r => r == MatchRequestStatus.AlreadyMatching) == 31);
 });
-Console.WriteLine("전체 9개 검증 그룹 통과");
+Console.WriteLine("전체 10개 검증 그룹 통과");
 
 static GameRoomManager CreateRoomManager(params IClientSession[] participants)
 {
@@ -196,6 +224,15 @@ static GameRoomManager CreateRoomManager(params IClientSession[] participants)
     return new GameRoomManager(sessions, new Lock());
 }
 static ClientMessage Request(string id) => new() { Type = ClientMessageType.MatchingRequest, RequestId = id };
+static ClientMessage Formation(string matchId, ProtocolFormation formation) => new()
+{
+    Type = ClientMessageType.FormationSubmit,
+    Payload = JsonSerializer.SerializeToElement(new FormationSubmitRequest
+    {
+        MatchId = matchId,
+        Formation = formation
+    })
+};
 static void Check(bool condition) { if (!condition) throw new Exception("검증 실패"); }
 static async Task Run(string name, Func<Task> test) { await test(); Console.WriteLine($"통과: {name}"); }
 static async Task ExpectFailure(Func<Task> action)

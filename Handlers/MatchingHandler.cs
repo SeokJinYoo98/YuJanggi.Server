@@ -27,11 +27,15 @@ namespace YuJanggi.Server.V2.Handlers
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ValidateMessage(message);
+            if ((message.Type is ClientMessageType.MatchingStartRequest or ClientMessageType.MatchingCancelRequest) &&
+                string.IsNullOrWhiteSpace(message.RequestId))
+                throw new InvalidOperationException("매칭 요청에 RequestId가 없습니다.");
+            if (message.Type == ClientMessageType.FormationSubmit && message.RequestId is not null)
+                throw new InvalidOperationException("포진 제출에는 RequestId를 사용할 수 없습니다.");
 
             return message.Type switch
             {
-                ClientMessageType.MatchingRequest 
+                ClientMessageType.MatchingStartRequest 
                         => HandleRequestAsync(session, message.RequestId!, cancellationToken),
                 ClientMessageType.MatchingCancelRequest 
                         => HandleCancelAsync(session, message.RequestId!, cancellationToken),
@@ -42,16 +46,10 @@ namespace YuJanggi.Server.V2.Handlers
             };
         }
 
-        private static void ValidateMessage(ClientMessage message)
-        {
-            if (string.IsNullOrWhiteSpace(message.RequestId))
-                throw new InvalidOperationException("매칭 요청에 RequestId가 없습니다.");
-        }
-
         private async Task HandleRequestAsync(
             IClientSession session, string requestId, CancellationToken cancellationToken)
         {
-            MatchingResult result;
+            MatchRequestStatus result;
             MatchPair? matchPair;
             TaskCompletionSource<bool>? responseCompletion = null;
             Task<bool>? firstResponse = null;
@@ -64,9 +62,9 @@ namespace YuJanggi.Server.V2.Handlers
                 cancellationToken.ThrowIfCancellationRequested();
                 matchPair = null;
                 result = _pendingResponses.ContainsKey(session.ClientId)
-                    ? MatchingResult.AlreadyMatching
+                    ? MatchRequestStatus.AlreadyMatching
                     : _matchMakingService.RequestMatch(session, out matchPair);
-                if (result == MatchingResult.Accepted)
+                if (result == MatchRequestStatus.Accepted)
                 {
                     responseCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
                     _pendingResponses.Add(session.ClientId, responseCompletion);
@@ -81,8 +79,8 @@ namespace YuJanggi.Server.V2.Handlers
             bool responseSent = false;
             try
             {
-                await SendResponseAsync(session, ServerMessageType.MatchingResponse, requestId,
-                    new MatchingResponse { Result = result }, cancellationToken);
+                await SendResponseAsync(session, ServerMessageType.MatchingStartResponse, requestId,
+                    new MatchingStartResponse { Result = ToProtocolResult(result) }, cancellationToken);
                 responseSent = true;
             }
             finally
@@ -144,7 +142,7 @@ namespace YuJanggi.Server.V2.Handlers
             cancellationToken.ThrowIfCancellationRequested();
             var result = _matchMakingService.CancelMatch(session);
             return SendResponseAsync(session, ServerMessageType.MatchingCancelResponse, requestId,
-                new MatchingCancelResponse { Result = result }, cancellationToken);
+                new MatchingCancelResponse { Result = ToProtocolResult(result) }, cancellationToken);
         }
 
         private static Task SendResponseAsync<TPayload>(
@@ -159,7 +157,7 @@ namespace YuJanggi.Server.V2.Handlers
             IClientSession session, ClientMessage message, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var payload = message.GetPayload<FormationSubmitRequest>();
+            var payload = message.GetPayload<FormationSubmit>();
             Formation? formation = payload.Formation switch
             {
                 ProtocolFormation.HEHE => Formation.HEHE,
@@ -169,37 +167,30 @@ namespace YuJanggi.Server.V2.Handlers
                 _ => null
             };
             // 필드 누락을 enum 기본값(HEHE) 제출로 처리하지 않습니다.
-            if (!message.Payload!.Value.TryGetProperty(nameof(FormationSubmitRequest.Formation), out _))
+            if (!message.Payload!.Value.TryGetProperty(nameof(FormationSubmit.Formation), out _))
                 formation = null;
 
-            var submission = formation.HasValue
-                ? _matchMakingService.SubmitFormation(session, formation.Value)
-                : new FormationSubmission(FormationSubmissionStatus.InvalidFormation);
-
-            // TODO:
-            // 룸 생성 후 접수 응답 전송이 실패하거나 취소되면 GameReady는 전송하지 않습니다.
-            // 현재 예외는 요청 처리 루프로 전달되며 상대는 준비 완료를 기다릴 수 있습니다.
-            // 준비 실패 통지와 재접속 시 상태 복원 정책은 Protocol 확장 시 연결해야 합니다.
-            await SendResponseAsync(session, ServerMessageType.FormationSubmitResponse,
-                message.RequestId!, new FormationSubmitResponse
-                {
-                    MatchId = submission.MatchId ?? string.Empty,
-                    Result = ToProtocolResult(submission.Result),
-                    RoomCreated = submission.RoomCreated
-                }, cancellationToken);
+            if (!formation.HasValue)
+                throw new InvalidDataException("포진 제출 값이 없거나 잘못되었습니다.");
+            var submission = _matchMakingService.SubmitFormation(session, payload.MatchId, formation.Value);
 
             if (submission.IsReady)
                 await SendGameReadyAsync(submission, cancellationToken);
         }
 
-        private static FormationSubmitResult ToProtocolResult(FormationSubmissionStatus result) => result switch
+        private static MatchingResult ToProtocolResult(MatchRequestStatus result) => result switch
         {
-            FormationSubmissionStatus.Accepted => FormationSubmitResult.Accepted,
-            FormationSubmissionStatus.AlreadySubmitted => FormationSubmitResult.AlreadySubmitted,
-            FormationSubmissionStatus.NotMatched => FormationSubmitResult.NotMatched,
-            FormationSubmissionStatus.InvalidFormation => FormationSubmitResult.InvalidFormation,
-            FormationSubmissionStatus.HandshakeRequired => FormationSubmitResult.HandshakeRequired,
-            FormationSubmissionStatus.ServerError => FormationSubmitResult.ServerError,
+            MatchRequestStatus.Accepted => MatchingResult.Accepted,
+            MatchRequestStatus.AlreadyMatching => MatchingResult.AlreadyMatching,
+            MatchRequestStatus.AlreadyMatched => MatchingResult.AlreadyMatched,
+            MatchRequestStatus.HandshakeRequired => MatchingResult.HandshakeRequired,
+            _ => throw new ArgumentOutOfRangeException(nameof(result))
+        };
+
+        private static MatchingCancelResult ToProtocolResult(MatchCancelStatus result) => result switch
+        {
+            MatchCancelStatus.Cancelled => MatchingCancelResult.Cancelled,
+            MatchCancelStatus.AlreadyMatched => MatchingCancelResult.AlreadyMatched,
             _ => throw new ArgumentOutOfRangeException(nameof(result))
         };
 
@@ -222,7 +213,7 @@ namespace YuJanggi.Server.V2.Handlers
                 ChoFormation = ToProtocolFormation(submission.ChoFormation!.Value),
                 HanFormation = ToProtocolFormation(submission.HanFormation!.Value)
             };
-            var message = ServerMessageFactory.CreateEvent(ServerMessageType.GameReady, ready);
+            var message = ServerMessageFactory.CreateEvent(ServerMessageType.GameReadyEvent, ready);
             var players = submission.Players!;
 
             // TODO:
@@ -240,7 +231,7 @@ namespace YuJanggi.Server.V2.Handlers
             // 첫 번째 MatchingFound 전송 후 두 번째가 실패하면 한쪽만 매칭 확정을 알게 됩니다.
             // 현재 요청 처리 루프의 연결 종료 정리로 매치는 해제되지만 상대 화면은 남을 수 있습니다.
             // 매칭 실패/종료 이벤트 구현 시 상대 통지와 복구 정책을 연결해야 합니다.
-            var firstDto = new MatchingFound
+            var firstDto = new MatchingFoundEvent
             {
                 MatchId = matchId,
                 MyTeam = ProtocolPlayerTeam.Cho,
@@ -248,13 +239,13 @@ namespace YuJanggi.Server.V2.Handlers
             };
             var firstMsg
                 = ServerMessageFactory.CreateEvent(
-                    ServerMessageType.MatchingFound,
+                    ServerMessageType.MatchingFoundEvent,
                     firstDto);
             await matchPair.First.SendAsync(
                 firstMsg,
                 cancellationToken);
 
-            var secondDto = new MatchingFound
+            var secondDto = new MatchingFoundEvent
             {
                 MatchId = matchId,
                 MyTeam = ProtocolPlayerTeam.Han,
@@ -262,7 +253,7 @@ namespace YuJanggi.Server.V2.Handlers
             };
             var secondMsg
                 = ServerMessageFactory.CreateEvent(
-                    ServerMessageType.MatchingFound,
+                    ServerMessageType.MatchingFoundEvent,
                     secondDto);
 
             await matchPair.Second.SendAsync(
@@ -270,9 +261,9 @@ namespace YuJanggi.Server.V2.Handlers
                 cancellationToken);
         }
 
-        private static MatchingPlayerEvent CreateMatchingPlayer(IClientSession session, ProtocolPlayerTeam team)
+        private static MatchingPlayer CreateMatchingPlayer(IClientSession session, ProtocolPlayerTeam team)
         {
-            return new MatchingPlayerEvent
+            return new MatchingPlayer
             {
                 PlayerId = session.ClientId.ToString(),
                 PlayerNickname = session.Nickname!,

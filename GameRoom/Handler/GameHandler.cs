@@ -1,4 +1,3 @@
-using System.Text.Json;
 using YuJanggi.Server.V2.Handlers;
 
 
@@ -29,44 +28,71 @@ namespace YuJanggi.Server.V2.GameRoom
 
             return message.Type switch
             {
-                ClientMessageType.GameSceneReadyRequest
+                ClientMessageType.GameSceneReady
                     => HandleGameSceneReadyAsync(
                         session,
                         message,
                         cancellationToken),
-
-                // 추후 추가
-                // ClientMessageType.MovePieceRequest
-                //     => HandleMovePieceAsync(session, message, cancellationToken),
-
-                // ClientMessageType.GiveUpRequest
-                //     => HandleGiveUpAsync(session, message, cancellationToken),
-
-                _ => throw new InvalidOperationException(
-                    $"처리할 수 없는 인게임 메시지입니다: {message.Type}")
+                ClientMessageType.MovePieceRequest
+                    => HandleMovePieceRequestAsync(
+                        session,
+                        message,
+                        cancellationToken),
+                _
+                    => throw new InvalidOperationException(
+                        $"처리할 수 없는 인게임 메시지입니다: {message.Type}")
             };
+        }
+        private async Task HandleMovePieceRequestAsync(
+            IClientSession session,
+            ClientMessage message,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(message.RequestId))
+                throw new InvalidOperationException("이동 요청에 RequestId가 없습니다.");
+
+            var request = message.GetPayload<MovePieceRequest>();
+            var room = _gameService.GetRoomBySession(session);
+            var result = ValidateMove(request);
+
+            var response = ServerMessageFactory.CreateResponse(
+                ServerMessageType.MovePieceResponse,
+                message.RequestId,
+                new MovePieceResponse { Result = result });
+
+            await session.SendAsync(response, cancellationToken);
+
+            switch (result)
+            {
+                case MovePieceResult.Accepted:
+                    var movePieceEvent = ToMovePieceEvent(request);
+
+                    var moved = ServerMessageFactory.CreateEvent(
+                        ServerMessageType.MovePieceEvent,
+                        movePieceEvent);
+
+                    await room.BroadcastAsync(moved, cancellationToken);
+
+                    break;
+
+                default:
+                    break;
+            }
+
+
+        }
+        private static MovePieceResult ValidateMove(
+            MovePieceRequest request)
+        {
+            // 현재는 모든 이동을 승인합니다. 장기 규칙 검증은 추후 구현합니다.
+            return MovePieceResult.Accepted;
         }
         private async Task HandleGameSceneReadyAsync(
             IClientSession session,
             ClientMessage message,
             CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(message.RequestId))
-            {
-                throw new InvalidDataException(
-                    "게임 준비 요청에 RequestId가 없습니다.");
-            }
-
-            if (message.Payload is not
-                {
-                    ValueKind: JsonValueKind.Object
-                })
-            {
-                throw new InvalidDataException(
-                    "게임 준비 Payload는 JSON 객체여야 합니다.");
-            }
-
-            _ = message.GetPayload<GameSceneReadyRequest>();
+            _ = message.GetPayload<GameSceneReady>();
 
             var room = _gameService.MarkPlayerReady(session);
             if (room is null)
@@ -80,20 +106,16 @@ namespace YuJanggi.Server.V2.GameRoom
                         StartedAt = DateTimeOffset.UtcNow
                     });
 
-            await Task.WhenAll(
-                SendStartAsync(
-                    room.ChoPlayer!,
-                    started,
-                    cancellationToken),
-                SendStartAsync(
-                    room.HanPlayer!,
-                    started,
-                    cancellationToken));
+            await room.BroadcastAsync(started, cancellationToken);
         }
-        private static async Task SendStartAsync(IClientSession player, ServerMessage message,
-            CancellationToken cancellationToken)
-        {
-            await player.SendAsync(message, cancellationToken);
-        }
+        private static MovePieceEvent ToMovePieceEvent(MovePieceRequest request)
+            => new()
+            {
+                Team = request.Team,
+                FromX = request.FromX,
+                FromZ = request.FromZ,
+                ToX = request.ToX,
+                ToZ = request.ToZ
+            };
     }
 }

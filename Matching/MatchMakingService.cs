@@ -1,5 +1,4 @@
 
-using YuJanggi.Protocol.Matching;
 using YuJanggi.Engine.Domain;
 
 namespace YuJanggi.Server.V2.Matching
@@ -8,6 +7,14 @@ namespace YuJanggi.Server.V2.Matching
     using GameRoom;
     internal sealed record MatchPair(IClientSession First, IClientSession Second);
     internal sealed record ConfirmedMatch(string MatchId, MatchPair Players);
+    internal enum MatchRequestStatus
+    {
+        Accepted, AlreadyMatching, AlreadyMatched, HandshakeRequired
+    }
+    internal enum MatchCancelStatus
+    {
+        Cancelled, AlreadyMatched
+    }
     internal enum FormationSubmissionStatus
     {
         Accepted, AlreadySubmitted, NotMatched, InvalidFormation, HandshakeRequired, ServerError
@@ -50,33 +57,33 @@ namespace YuJanggi.Server.V2.Matching
             _gameRoomManager = gameRoomManager;
         }
 
-        public MatchingResult RequestMatch(IClientSession session, out MatchPair? matchPair)
+        public MatchRequestStatus RequestMatch(IClientSession session, out MatchPair? matchPair)
         {
             matchPair = null;
             lock (_sync)
             {
                 if (!session.IsHandshakeCompleted)
-                    return MatchingResult.HandshakeRequired;
+                    return MatchRequestStatus.HandshakeRequired;
                 if (FindMatch(session.ClientId) is { } match)
-                    return match.MatchId is null ? MatchingResult.AlreadyMatching : MatchingResult.AlreadyMatched;
+                    return match.MatchId is null ? MatchRequestStatus.AlreadyMatching : MatchRequestStatus.AlreadyMatched;
                 if (_queue.Contains(session))
-                    return MatchingResult.AlreadyMatching;
+                    return MatchRequestStatus.AlreadyMatching;
 
                 _queue.Enqueue(session);
                 matchPair = TryCreateMatchPair();
-                return MatchingResult.Accepted;
+                return MatchRequestStatus.Accepted;
             }
         }
 
-        public MatchingCancelResult CancelMatch(IClientSession session)
+        public MatchCancelStatus CancelMatch(IClientSession session)
         {
             lock (_sync)
             {
                 // 쌍을 확보한 이후에는 큐 취소로 상대 예약을 무효화하지 않습니다.
                 if (FindMatch(session.ClientId) is not null)
-                    return MatchingCancelResult.AlreadyMatched;
+                    return MatchCancelStatus.AlreadyMatched;
                 _queue.Remove(session);
-                return MatchingCancelResult.Cancelled;
+                return MatchCancelStatus.Cancelled;
             }
         }
 
@@ -118,12 +125,8 @@ namespace YuJanggi.Server.V2.Matching
         }
 
         /// <summary>현재 확정 매치의 참가자 포진을 한 번 접수하며, 양쪽 접수 시 한 번만 룸을 생성합니다.</summary>
-        public FormationSubmission SubmitFormation(IClientSession session, Formation formation)
+        public FormationSubmission SubmitFormation(IClientSession session, string matchId, Formation formation)
         {
-            // TODO:
-            // 현재 FormationSubmit에는 MatchId가 없어 세션의 현재 매치에 제출을 연결합니다.
-            // 같은 연결에서 재매칭 후 이전 제출이 늦게 도착하면 새 매치의 포진으로 접수될 수 있습니다.
-            // 재매칭/재전송 프로토콜 확장 시 MatchId를 포함해 이전 매치의 제출을 거절해야 합니다.
             lock (_sync)
             {
                 if (!session.IsHandshakeCompleted)
@@ -132,7 +135,8 @@ namespace YuJanggi.Server.V2.Matching
                     return new(FormationSubmissionStatus.InvalidFormation);
 
                 var state = FindMatch(session.ClientId);
-                if (state?.MatchId is null)
+                if (state?.MatchId is null || string.IsNullOrWhiteSpace(matchId) ||
+                    state.MatchId != matchId)
                     return new(FormationSubmissionStatus.NotMatched);
 
                 bool isCho = state.Players.First.ClientId == session.ClientId;

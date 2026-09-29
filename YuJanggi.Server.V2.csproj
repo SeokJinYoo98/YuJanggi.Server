@@ -16,8 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-	  <PackageReference Include="YuJanggi.Protocol" Version="1.0.2" />
-	  <PackageReference Include="YuJanggi.Engine" Version="2.3.1" />
+	  <PackageReference Include="YuJanggi.Protocol" Version="1.2.0" />
+	  <PackageReference Include="YuJanggi.Engine" Version="2.4.0" />
   </ItemGroup>
 
 </Project>

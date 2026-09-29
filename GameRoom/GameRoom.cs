@@ -1,6 +1,7 @@
 namespace YuJanggi.Server.V2.GameRoom
 {
     using ClientSession;
+    using Protocol.Messages;
 
     /// <summary>한 대국의 두 참가자와 네트워크 룸의 준비·시작·종료 상태를 소유합니다.</summary>
     internal sealed class GameRoom
@@ -35,6 +36,24 @@ namespace YuJanggi.Server.V2.GameRoom
                 ChoPlayer = choPlayer;
                 HanPlayer = hanPlayer;
             }
+        }
+
+        /// <summary>초기화된 두 참가자에게 동일한 메시지를 전송합니다.</summary>
+        public Task BroadcastAsync(ServerMessage message, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(message);
+
+            IClientSession cho;
+            IClientSession han;
+            lock (_sync)
+            {
+                cho = ChoPlayer ?? throw new InvalidOperationException("초 참가자가 초기화되지 않았습니다.");
+                han = HanPlayer ?? throw new InvalidOperationException("한 참가자가 초기화되지 않았습니다.");
+            }
+
+            return Task.WhenAll(
+                cho.SendAsync(message, cancellationToken),
+                han.SendAsync(message, cancellationToken));
         }
 
         /// <summary>양측 준비를 처음 충족한 요청만 시작 전환에 성공합니다.</summary>

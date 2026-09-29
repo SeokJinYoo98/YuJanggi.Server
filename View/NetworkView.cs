@@ -19,6 +19,23 @@ namespace YuJanggi.Server.V2.View
     {
         private static readonly object OutputLock = new();
 
+        public static void ShowCommands()
+        {
+            lock (OutputLock)
+                Console.WriteLine("사용 가능한 명령어: Clear");
+        }
+
+        public static void ClearAndShowCommands()
+        {
+            lock (OutputLock)
+            {
+                if (!Console.IsOutputRedirected)
+                    Console.Clear();
+
+                Console.WriteLine("사용 가능한 명령어: Clear");
+            }
+        }
+
         public static void Write(
             NetworkMessageType messageType,
             string message,
