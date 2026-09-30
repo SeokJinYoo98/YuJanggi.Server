@@ -25,13 +25,6 @@ namespace YuJanggi.Server.V2.Handlers
                 throw new InvalidOperationException(
                     $"핸드셰이크 메시지가 아닙니다: {message.Type}");
             }
-
-            if (string.IsNullOrWhiteSpace(message.RequestId))
-            {
-                throw new InvalidOperationException(
-                    "핸드셰이크 요청에 RequestId가 없습니다.");
-            }
-
             ProtocolHandshakeRequest request =
                 message.GetPayload<ProtocolHandshakeRequest>();
 
@@ -45,7 +38,7 @@ namespace YuJanggi.Server.V2.Handlers
 
             ServerMessage responseMessage =
                 ServerMessageFactory.CreateResponse(
-                    ServerMessageType.ProtocolHandshake,
+                    ServerMessageType.HandshakeResponse,
                     message.RequestId,
                     response);
 

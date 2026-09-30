@@ -31,7 +31,9 @@ namespace YuJanggi.Server.V2.Server
         private readonly GameService _gameService;
         private readonly Lock _roomSync = new();
 
-        private readonly Dictionary<ClientMessageType, IMessageHandler> _handlers;
+        private readonly ProtocolHandshakeHandler _handshakeHandler;
+        private readonly MatchingHandler _matchingHandler;
+        private readonly GameHandler _gameHandler;
 
         #endregion
 
@@ -49,39 +51,9 @@ namespace YuJanggi.Server.V2.Server
             _gameRoomManager = new GameRoomManager(_sessionManager, _roomSync);
             _matchMakingService = new MatchMakingService(_gameRoomManager);
             _gameService = new GameService(_gameRoomManager);
-            _handlers = CreateHandlers();
-        }
-
-        private Dictionary<ClientMessageType, IMessageHandler> CreateHandlers()
-        {
-            var handshakeHandler = new ProtocolHandshakeHandler();
-            var matchingHandler = new MatchingHandler(_matchMakingService);
-            var gameHandler = new GameHandler(_gameService);
-
-            return
-                new Dictionary<ClientMessageType, IMessageHandler>
-                {
-                    {
-                        ClientMessageType.HandshakeRequest,
-                        handshakeHandler
-                    },
-                    {
-                        ClientMessageType.MatchingRequest,
-                        matchingHandler
-                    },
-                    {
-                        ClientMessageType.MatchingCancelRequest,
-                        matchingHandler
-                    },
-                    {
-                        ClientMessageType.FormationSubmit,
-                        matchingHandler
-                    },
-                    {
-                        ClientMessageType.GameSceneReadyRequest,
-                        gameHandler
-                    }
-                };
+            _handshakeHandler = new ProtocolHandshakeHandler();
+            _matchingHandler = new MatchingHandler(_matchMakingService);
+            _gameHandler = new GameHandler(_gameService);
         }
 
         #endregion
@@ -166,18 +138,34 @@ namespace YuJanggi.Server.V2.Server
                         await session.ReceiveAsync(
                             cancellationToken);
 
-                    if (!_handlers.TryGetValue(
-                        message.Type,
-                        out IMessageHandler? handler))
+                    switch(message.Type)
                     {
-                        throw new InvalidOperationException(
-                            $"처리할 수 없는 메시지입니다: {message.Type}");
-                    }
 
-                    await handler.HandleAsync(
-                        session,
-                        message,
-                        cancellationToken);
+                    }
+                    switch (message.Type)
+                    {
+                        case ClientMessageType.HandshakeRequest:
+                            await _handshakeHandler.HandleAsync(
+                                session, message, cancellationToken);
+                            break;
+
+                        case ClientMessageType.MatchingStartRequest:
+                        case ClientMessageType.MatchingCancelRequest:
+                        case ClientMessageType.FormationSubmit:
+                            await _matchingHandler.HandleAsync(
+                                session, message, cancellationToken);
+                            break;
+
+                        case ClientMessageType.GameSceneReady:
+                        case ClientMessageType.MovePieceRequest:
+                            await _gameHandler.HandleAsync(
+                                session, message, cancellationToken);
+                            break;
+
+                        default:
+                            throw new InvalidOperationException(
+                                $"처리할 수 없는 메시지입니다: {message.Type}");
+                    }
                 }
             }
             catch (OperationCanceledException)
