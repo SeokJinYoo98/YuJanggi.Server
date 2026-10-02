@@ -37,9 +37,8 @@ namespace YuJanggi.Server.V2.Handlers
             };
 
             ServerMessage responseMessage =
-                ServerMessageFactory.CreateResponse(
+                ServerMessageFactory.CreateEvent(
                     ServerMessageType.HandshakeResponse,
-                    message.RequestId,
                     response);
 
             await session.SendAsync(
