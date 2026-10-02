@@ -1,3 +1,7 @@
+# Publish output
+publish/
+**/publish/
+
 # Visual Studio
 .vs/
 *.user

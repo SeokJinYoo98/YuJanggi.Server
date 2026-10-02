@@ -138,10 +138,6 @@ namespace YuJanggi.Server.V2.Server
                         await session.ReceiveAsync(
                             cancellationToken);
 
-                    switch(message.Type)
-                    {
-
-                    }
                     switch (message.Type)
                     {
                         case ClientMessageType.HandshakeRequest:
