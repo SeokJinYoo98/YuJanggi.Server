@@ -19,6 +19,14 @@ namespace YuJanggi.Server.V2.View
     {
         private static readonly object OutputLock = new();
 
+        public static void LogPackageVersions()
+        {
+            Write(NetworkMessageType.Debug,
+                $"YuJanggi.Engine version: {YuJanggi.Engine.Version.Version.Current}");
+            Write(NetworkMessageType.Debug,
+                $"YuJanggi.Protocol version: {YuJanggi.Protocol.Version.Version.Current}");
+        }
+
         public static void ShowCommands()
         {
             lock (OutputLock)

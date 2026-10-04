@@ -70,6 +70,7 @@ namespace YuJanggi.Server.V2.Server
             NetworkView.Write(
                 NetworkMessageType.Message,
                 "YuJanggi Server started.");
+            NetworkView.LogPackageVersions();
 
             try
             {
