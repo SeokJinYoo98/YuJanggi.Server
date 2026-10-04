@@ -1,0 +1,18 @@
+[Unit]
+Description=YuJanggi Server
+After=network.target
+
+[Service]
+Type=simple
+# Example values: change User, WorkingDirectory and ExecStart for your EC2 host.
+User=ubuntu
+WorkingDirectory=/home/ubuntu/yujanggi
+ExecStart=/usr/bin/dotnet /home/ubuntu/yujanggi/YuJanggi.Server.V2.dll
+Restart=on-failure
+RestartSec=5
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
