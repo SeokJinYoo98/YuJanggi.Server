@@ -5,17 +5,22 @@ namespace YuJanggi.Server.V2.GameRoom
     /// <summary>게임룸의 생성, 조회, 제거 및 수명을 관리합니다.</summary>
     internal sealed class GameRoomManager : IAsyncDisposable
     {
+        #region Fields
         private readonly ClientSessionManager _sessionManager;
         private readonly Lock _roomSync;
         private readonly Dictionary<string, GameRoom> _gameRooms = new();
         private bool _stopping;
+        #endregion
 
+        #region Constructors
         public GameRoomManager(ClientSessionManager sessionManager, Lock roomSync)
         {
             _sessionManager = sessionManager;
             _roomSync = roomSync;
         }
+        #endregion
 
+        #region Public Methods
         public GameRoom CreateGameRoom(string matchId, IClientSession choPlayer, IClientSession hanPlayer)
         {
             var room = new GameRoom();
@@ -53,13 +58,15 @@ namespace YuJanggi.Server.V2.GameRoom
             }
         }
 
-        public Task RemoveRoomAsync(string matchId)
+        public bool RemoveRoom(string matchId, GameRoom expectedRoom)
         {
-            GameRoom? room;
             lock (_roomSync)
-                _gameRooms.Remove(matchId, out room);
-            room?.Close();
-            return Task.CompletedTask;
+            {
+                if (!_gameRooms.TryGetValue(matchId, out var room) ||
+                    !ReferenceEquals(room, expectedRoom))
+                    return false;
+                return _gameRooms.Remove(matchId);
+            }
         }
 
         public Task RemoveRoomsForPlayerAsync(Guid clientId)
@@ -95,5 +102,7 @@ namespace YuJanggi.Server.V2.GameRoom
 
         // 기존 서버 및 호출자의 비동기 정리 계약은 유지합니다. 대기할 엔진 작업은 없습니다.
         public ValueTask DisposeAsync() => new(ClearAsync());
+
+        #endregion
     }
 }

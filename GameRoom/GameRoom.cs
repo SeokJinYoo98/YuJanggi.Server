@@ -1,25 +1,51 @@
 namespace YuJanggi.Server.V2.GameRoom
 {
     using ClientSession;
-    using Protocol.Messages;
+    using State;
+
 
     /// <summary>한 대국의 두 참가자와 네트워크 룸의 준비·시작·종료 상태를 소유합니다.</summary>
     internal sealed class GameRoom
     {
+        #region Fields
         private readonly Lock _sync = new();
-        private bool _choReady;
-        private bool _hanReady;
-        private bool _started;
-        private bool _closed;
+        private GameEndSubmittedPlayers _gameEndSubmittedPlayers = GameEndSubmittedPlayers.None;
+        private GameEndSubmission? _choGameEndSubmission;
+        private GameEndSubmission? _hanGameEndSubmission;
 
-        public string MatchId { get; private set; } = string.Empty;
+        private ReadyPlayers _readyPlayers 
+            = ReadyPlayers.None;
+        private GameRoomState _state 
+            = GameRoomState.WaitingForReady;
+        #endregion
+
+        #region Properties
+        internal Lock SyncRoot
+            => _sync;
+
+        public string MatchId { get; private set; } 
+            = string.Empty;
+
         public IClientSession? ChoPlayer { get; private set; }
         public IClientSession? HanPlayer { get; private set; }
-        public bool ChoReady { get { lock (_sync) return _choReady; } }
-        public bool HanReady { get { lock (_sync) return _hanReady; } }
-        public bool Started { get { lock (_sync) return _started; } }
-        public bool Closed { get { lock (_sync) return _closed; } }
 
+        public GameRoomState State { get { lock (_sync) return _state; } }
+
+        public bool ChoReady { get { lock (_sync) return (_readyPlayers & ReadyPlayers.Cho) != 0; } }
+        public bool HanReady { get { lock (_sync) return (_readyPlayers & ReadyPlayers.Han) != 0; } }
+        public bool AllReady { get { lock (_sync) return _readyPlayers == ReadyPlayers.All; } }
+        public bool AllGameEndSubmitted
+        {
+            get { lock (_sync) return _gameEndSubmittedPlayers == GameEndSubmittedPlayers.All; }
+        }
+
+        public bool Started 
+            => State == GameRoomState.Playing;
+        public bool Closed 
+            => State == GameRoomState.Closed;
+        #endregion
+
+        #region Public Methods
         public void Initialize(string matchId, IClientSession choPlayer, IClientSession hanPlayer)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(matchId);
@@ -30,62 +56,18 @@ namespace YuJanggi.Server.V2.GameRoom
 
             lock (_sync)
             {
-                if (_closed || MatchId.Length != 0)
+                if (_state != GameRoomState.WaitingForReady || MatchId.Length != 0)
                     throw new InvalidOperationException("초기화할 수 없는 게임룸입니다.");
                 MatchId = matchId;
                 ChoPlayer = choPlayer;
                 HanPlayer = hanPlayer;
             }
         }
-
-        /// <summary>초기화된 두 참가자에게 동일한 메시지를 전송합니다.</summary>
-        public Task BroadcastAsync(ServerMessage message, CancellationToken cancellationToken)
-        {
-            ArgumentNullException.ThrowIfNull(message);
-
-            IClientSession cho;
-            IClientSession han;
-            lock (_sync)
-            {
-                cho = ChoPlayer ?? throw new InvalidOperationException("초 참가자가 초기화되지 않았습니다.");
-                han = HanPlayer ?? throw new InvalidOperationException("한 참가자가 초기화되지 않았습니다.");
-            }
-
-            return Task.WhenAll(
-                cho.SendAsync(message, cancellationToken),
-                han.SendAsync(message, cancellationToken));
-        }
-
-        /// <summary>양측 준비를 처음 충족한 요청만 시작 전환에 성공합니다.</summary>
-        public bool MarkPlayerReady(IClientSession session)
-        {
-            ArgumentNullException.ThrowIfNull(session);
-            lock (_sync)
-            {
-                if (!Contains(session))
-                    throw new InvalidOperationException("룸 참가자가 아닙니다.");
-                if (_closed || _started)
-                    return false;
-
-                if (ChoPlayer!.ClientId == session.ClientId)
-                    _choReady = true;
-                else
-                    _hanReady = true;
-
-                if (!_choReady || !_hanReady)
-                    return false;
-                _started = true;
-                return true;
-            }
-        }
-
-        // 참가자와 MatchId는 초기화 후 변경하지 않습니다.
         public bool Contains(IClientSession session)
         {
             ArgumentNullException.ThrowIfNull(session);
             return ChoPlayer?.ClientId == session.ClientId || HanPlayer?.ClientId == session.ClientId;
         }
-
         public IClientSession? GetOpponent(IClientSession session)
         {
             ArgumentNullException.ThrowIfNull(session);
@@ -100,7 +82,93 @@ namespace YuJanggi.Server.V2.GameRoom
         public void Close()
         {
             lock (_sync)
-                _closed = true;
+                _state = GameRoomState.Closed;
         }
+        #endregion
+
+        #region Private Methods
+        internal bool HasSubmittedGameEnd(IClientSession session)
+            => GetGameEndSubmission(session) is not null;
+
+        internal GameEndSubmission? GetGameEndSubmission(IClientSession session)
+        {
+            ArgumentNullException.ThrowIfNull(session);
+            lock (_sync)
+            {
+                if (ChoPlayer?.ClientId == session.ClientId)
+                    return _choGameEndSubmission;
+                if (HanPlayer?.ClientId == session.ClientId)
+                    return _hanGameEndSubmission;
+                throw new InvalidOperationException("룸 참가자가 아닙니다.");
+            }
+        }
+
+        internal void MarkGameEndSubmitted(IClientSession session, GameEndSubmission submission)
+        {
+            ArgumentNullException.ThrowIfNull(submission);
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Playing || HasSubmittedGameEnd(session))
+                    throw new InvalidOperationException("게임 종료 결과를 제출할 수 없습니다.");
+                if (ChoPlayer!.ClientId == session.ClientId)
+                {
+                    _choGameEndSubmission = submission;
+                    _gameEndSubmittedPlayers |= GameEndSubmittedPlayers.Cho;
+                }
+                else
+                {
+                    _hanGameEndSubmission = submission;
+                    _gameEndSubmittedPlayers |= GameEndSubmittedPlayers.Han;
+                }
+            }
+        }
+
+        internal bool TryMarkEnded()
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Playing || !AllGameEndSubmitted ||
+                    _choGameEndSubmission != _hanGameEndSubmission)
+                    return false;
+                _state = GameRoomState.Ended;
+                return true;
+            }
+        }
+
+        /// <summary>참가자의 준비 상태만 기록합니다. 시작 판단은 Service가 담당합니다.</summary>
+        internal void SetPlayerReady(IClientSession session)
+        {
+            ArgumentNullException.ThrowIfNull(session);
+            lock (_sync)
+            {
+                if (!Contains(session))
+                    throw new InvalidOperationException("룸 참가자가 아닙니다.");
+                if (_state != GameRoomState.WaitingForReady)
+                    throw new InvalidOperationException("준비 상태를 변경할 수 없는 게임룸입니다.");
+
+                if (ChoPlayer!.ClientId == session.ClientId)
+                    _readyPlayers |= ReadyPlayers.Cho;
+                else
+                    _readyPlayers |= ReadyPlayers.Han;
+            }
+        }
+
+        internal void Start()
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.WaitingForReady || _readyPlayers != ReadyPlayers.All)
+                    throw new InvalidOperationException("시작할 수 없는 게임룸입니다.");
+                _state = GameRoomState.Playing;
+            }
+        }
+        #endregion
+
+        #region Events
+
+        #endregion
+
+        #region Event Handlers
+        #endregion
     }
 }
