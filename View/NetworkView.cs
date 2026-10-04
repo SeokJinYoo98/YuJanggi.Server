@@ -5,6 +5,8 @@ using YuJanggi.Protocol.Messages;
 namespace YuJanggi.Server.V2.View
 {
     using System.Text.Json;
+    using System.Text;
+    using YuJanggi.Server.V2.GameRoom;
     using YuJanggi.Engine;
 
 
@@ -30,7 +32,23 @@ namespace YuJanggi.Server.V2.View
         public static void ShowCommands()
         {
             lock (OutputLock)
-                Console.WriteLine("사용 가능한 명령어: Clear");
+                Console.WriteLine("사용 가능한 명령어: Clear, Rooms");
+        }
+
+        public static void ShowRooms(IReadOnlyList<GameRoomSnapshot> rooms)
+        {
+            var output = new StringBuilder();
+            output.AppendLine($"GameRooms: {rooms.Count}");
+            foreach (var room in rooms)
+            {
+                output.AppendLine();
+                output.AppendLine($"MatchId: {room.MatchId}");
+                output.AppendLine($"State: {room.State}");
+                output.AppendLine($"Cho: {FormatPlayer(room.Cho)}");
+                output.AppendLine($"Han: {FormatPlayer(room.Han)}");
+            }
+
+            Write(NetworkMessageType.Debug, output.ToString().TrimEnd());
         }
 
         public static void ClearAndShowCommands()
@@ -40,7 +58,7 @@ namespace YuJanggi.Server.V2.View
                 if (!Console.IsOutputRedirected)
                     Console.Clear();
 
-                Console.WriteLine("사용 가능한 명령어: Clear");
+                Console.WriteLine("사용 가능한 명령어: Clear, Rooms");
             }
         }
 
@@ -100,6 +118,11 @@ namespace YuJanggi.Server.V2.View
                 $"Payload: {GetPayloadText(message.Payload)}",
                 nickname);
         }
+
+        private static string FormatPlayer(GameRoomPlayerSnapshot? player)
+            => player is null
+                ? "None"
+                : $"{player.Nickname ?? "Unknown"} / {player.ClientId} / {player.ConnectionInfo} / Ready={player.Ready}";
 
         private static string GetPayloadText(JsonElement? payload)
         {

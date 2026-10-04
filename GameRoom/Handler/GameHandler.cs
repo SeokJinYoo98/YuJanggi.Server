@@ -45,9 +45,11 @@ namespace YuJanggi.Server.V2.GameRoom
                         session,
                         message,
                         cancellationToken),
-
                 ClientMessageType.GameEndRequest
-                    => HandleGameEndRequestAsync(session, message, cancellationToken),
+                    => HandleGameEndRequestAsync(
+                        session, 
+                        message, 
+                        cancellationToken),
                 _
                     => throw new InvalidOperationException(
                         $"처리할 수 없는 인게임 메시지입니다: {message.Type}")

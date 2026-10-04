@@ -60,6 +60,28 @@ namespace YuJanggi.Server.V2.Server
 
         #region Public Methods
 
+        public void ShowRooms()
+        {
+            var snapshots = new List<GameRoomSnapshot>();
+            foreach (var room in _gameRoomManager.GetRoomsSnapshot())
+            {
+                lock (room.SyncRoot)
+                {
+                    var cho = room.ChoPlayer;
+                    var han = room.HanPlayer;
+                    snapshots.Add(new GameRoomSnapshot(
+                        room.MatchId,
+                        room.State,
+                        cho is null ? null : new GameRoomPlayerSnapshot(
+                            cho.ClientId, cho.Nickname, cho.ConnectionInfo, room.ChoReady),
+                        han is null ? null : new GameRoomPlayerSnapshot(
+                            han.ClientId, han.Nickname, han.ConnectionInfo, room.HanReady)));
+                }
+            }
+
+            NetworkView.ShowRooms(snapshots);
+        }
+
         public async Task RunAsync(
             CancellationToken cancellationToken = default)
         {
@@ -155,6 +177,7 @@ namespace YuJanggi.Server.V2.Server
 
                         case ClientMessageType.GameSceneReady:
                         case ClientMessageType.MovePieceRequest:
+                        case ClientMessageType.GameEndRequest:
                             await _gameHandler.HandleAsync(
                                 session, message, cancellationToken);
                             break;

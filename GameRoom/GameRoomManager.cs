@@ -21,6 +21,12 @@ namespace YuJanggi.Server.V2.GameRoom
         #endregion
 
         #region Public Methods
+        public GameRoom[] GetRoomsSnapshot()
+        {
+            lock (_roomSync)
+                return _gameRooms.Values.ToArray();
+        }
+
         public GameRoom CreateGameRoom(string matchId, IClientSession choPlayer, IClientSession hanPlayer)
         {
             var room = new GameRoom();
