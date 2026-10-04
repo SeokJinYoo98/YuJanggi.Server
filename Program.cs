@@ -34,6 +34,8 @@
 
                 if (string.Equals(input.Trim(), "Clear", StringComparison.OrdinalIgnoreCase))
                     View.NetworkView.ClearAndShowCommands();
+                else if (string.Equals(input.Trim(), "Rooms", StringComparison.OrdinalIgnoreCase))
+                    _server.ShowRooms();
             }
 
             await serverTask;
