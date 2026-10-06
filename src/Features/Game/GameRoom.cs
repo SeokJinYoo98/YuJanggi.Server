@@ -1,6 +1,6 @@
-namespace YuJanggi.Server.GameRoom
+namespace YuJanggi.Server.Features.Game
 {
-    using ClientSession;
+    using Connection;
     using Core.Sessions;
     using State;
 

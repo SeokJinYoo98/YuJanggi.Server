@@ -4,13 +4,13 @@ namespace YuJanggi.Server
 {
     using Protocol.Messages;
 
-    using Handlers;
-    using Transport;
+    using Connection;
+    using Features.Login;
+    using Transport.Tcp;
     using View;
-    using ClientSession;
     using Core.Sessions;
-    using Lobby;
-    using GameRoom;
+    using Features.Lobby;
+    using Features.Game;
 
     /// <summary>
     /// 유장기 서버의 실행 및 클라이언트 연결 수락을 관리합니다.
@@ -28,6 +28,7 @@ namespace YuJanggi.Server
         private readonly TcpConnectionListener  _listener;
         private readonly ClientSessionManager   _sessionManager;
         private readonly ConnectionService _connectionService;
+        private readonly LoginService _loginService;
         private readonly GameRoomManager _gameRoomManager;
         private readonly LobbyService _lobbyService;
         private readonly GameService _gameService;
@@ -54,7 +55,8 @@ namespace YuJanggi.Server
             _connectionService = new ConnectionService(_sessionManager, _roomSync);
             _lobbyService = new LobbyService(new LobbyManager(), _gameRoomManager);
             _gameService = new GameService(_gameRoomManager);
-            _handshakeHandler = new ProtocolHandshakeHandler(_connectionService);
+            _loginService = new LoginService(new LoginManager());
+            _handshakeHandler = new ProtocolHandshakeHandler(_loginService);
             _lobbyHandler = new LobbyHandler(_lobbyService);
             _gameHandler = new GameHandler(_gameService);
         }
@@ -134,6 +136,7 @@ namespace YuJanggi.Server
                 }
                 finally
                 {
+                    _loginService.Clear();
                     await _lobbyService.ClearAsync();
                     await _gameService.ClearAsync();
                 }
@@ -211,6 +214,7 @@ namespace YuJanggi.Server
             // 서버 종료 시 세션 목록이 먼저 비워졌더라도 대기열은 반드시 정리합니다.
 
             bool removed = _connectionService.UnregisterSession(session);
+            _loginService.DisconnectPlayer(session);
 
             // 서버 잠금을 해제한 뒤 매칭 상태와 게임룸을 각각 정리합니다.
             await _lobbyService.DisconnectPlayerAsync(session);

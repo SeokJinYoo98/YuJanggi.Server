@@ -1,5 +1,5 @@
-﻿
-namespace YuJanggi.Server.GameRoom.State
+
+namespace YuJanggi.Server.Features.Game.State
 {
     internal enum GameRoomState
     {

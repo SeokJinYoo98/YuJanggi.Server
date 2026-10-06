@@ -6,8 +6,8 @@ namespace YuJanggi.Server.Tests.InGame
     using YuJanggi.Protocol.InGame;
     using YuJanggi.Protocol.Matching;
     using YuJanggi.Protocol.Messages;
-    using YuJanggi.Server.GameRoom;
-    using YuJanggi.Server.GameRoom.State;
+    using YuJanggi.Server.Features.Game;
+    using YuJanggi.Server.Features.Game.State;
     using YuJanggi.Server.Tests.Connection;
     using static YuJanggi.Server.Tests.Connection.TestSupport;
 
@@ -54,9 +54,6 @@ namespace YuJanggi.Server.Tests.InGame
         [TestMethod]
         public async Task GameEndResponsePrecedesFinalEventAndRoomRemoval()
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            using var cho = await Peer.Create();
-            using var han = await Peer.Create();
             await using var rooms = CreateRoomManager(cho.Session, han.Session);
             var room = rooms.CreateGameRoom("end-event", cho.Session, han.Session);
             var service = new GameService(rooms);
@@ -97,9 +94,6 @@ namespace YuJanggi.Server.Tests.InGame
         [TestMethod]
         public async Task EndedRoomIsRemovedWhenResponseSendFails()
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            using var cho = await Peer.Create();
-            using var han = await Peer.Create();
             await using var rooms = CreateRoomManager(cho.Session, han.Session);
             var room = rooms.CreateGameRoom("failed-end", cho.Session, han.Session);
             var service = new GameService(rooms);

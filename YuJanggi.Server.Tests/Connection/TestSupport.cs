@@ -8,15 +8,14 @@ using YuJanggi.Protocol.Matching;
 using YuJanggi.Protocol.Connection;
 using YuJanggi.Protocol.Serialization;
 using YuJanggi.Server;
-using YuJanggi.Server.ClientSession;
+using YuJanggi.Server.Connection;
 using YuJanggi.Server.Core.Sessions;
-using YuJanggi.Server.Handlers;
-using YuJanggi.Server.GameRoom;
-using YuJanggi.Server.Lobby;
-using YuJanggi.Server.Transport;
+using YuJanggi.Server.Features.Game;
+using YuJanggi.Server.Features.Lobby;
+using YuJanggi.Server.Transport.Tcp;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ClientSession = YuJanggi.Server.ClientSession.ClientSession;
+using ClientSession = YuJanggi.Server.Connection.ClientSession;
 
 namespace YuJanggi.Server.Tests.Connection
 {
@@ -55,7 +54,7 @@ namespace YuJanggi.Server.Tests.Connection
     internal sealed class Peer : IDisposable
     {
         public required TcpClient Client { get; init; }
-        public required ClientSession.ClientSession Session { get; init; }
+        public required YuJanggi.Server.Connection.ClientSession Session { get; init; }
         public SemaphoreSlim SendLock => (SemaphoreSlim)typeof(TcpClientConnection)
             .GetField("_sendLock", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Session.Connection)!;
         public static async Task<Peer> Create(bool handshake = true)
@@ -66,7 +65,7 @@ namespace YuJanggi.Server.Tests.Connection
             var connect = client.ConnectAsync((IPEndPoint)listener.LocalEndpoint);
             var accepted = await listener.AcceptTcpClientAsync();
             await connect;
-            var session = new ClientSession.ClientSession(new TcpClientConnection(accepted), "검증 클라이언트");
+            var session = new YuJanggi.Server.Connection.ClientSession(new TcpClientConnection(accepted), "검증 클라이언트");
             if (handshake) session.CompleteHandshake();
             return new Peer { Client = client, Session = session };
         }

@@ -1,9 +1,9 @@
-namespace YuJanggi.Server.ClientSession
+namespace YuJanggi.Server.Connection
 {
     using Core.Sessions;
     using Protocol.Messages;
 
-    using Transport;
+    using Transport.Tcp;
     using View;
 
     internal sealed class ClientSession : IClientSession

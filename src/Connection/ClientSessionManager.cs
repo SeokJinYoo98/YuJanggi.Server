@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace YuJanggi.Server.ClientSession
+namespace YuJanggi.Server.Connection
 {
     using Core.Sessions;
     internal sealed class ClientSessionManager

@@ -1,10 +1,10 @@
-namespace YuJanggi.Server.ClientSession
+namespace YuJanggi.Server.Connection
 {
     using Core.Sessions;
     using Protocol.Connection;
     using View;
 
-    /// <summary>연결 등록, Handshake, 연결 해제 및 서버 종료 시 Session 정리를 조정합니다.</summary>
+    /// <summary>연결 등록, 연결 해제 및 서버 종료 시 Session 정리를 조정합니다.</summary>
     internal sealed class ConnectionService
     {
         private readonly ClientSessionManager _sessionManager;
@@ -27,22 +27,6 @@ namespace YuJanggi.Server.ClientSession
             NetworkView.Write(NetworkMessageType.Message,
                 $"Client connected: {session.ConnectionInfo}", session.Nickname);
             return true;
-        }
-
-        public ProtocolHandshakeResult ValidateHandshake(ProtocolHandshakeRequest request)
-        {
-            var result = ProtocolHandshakeResult.Success;
-            if (request.YuJanggiProtocolVersion != Protocol.Version.Version.Current)
-                result |= ProtocolHandshakeResult.ProtocolVersionMismatch;
-            if (request.YuJanggiCoreVersion != Engine.Version.Version.Current)
-                result |= ProtocolHandshakeResult.CoreVersionMismatch;
-            return result;
-        }
-
-        public void CompleteHandshake(IClientSession session, ProtocolHandshakeResult result)
-        {
-            if (result == ProtocolHandshakeResult.Success)
-                session.CompleteHandshake();
         }
 
         public bool UnregisterSession(IClientSession session)

@@ -1,12 +1,12 @@
 
 
-namespace YuJanggi.Server.Lobby
+namespace YuJanggi.Server.Features.Lobby
 {
     using Engine.Domain;
 
-    using ClientSession;
+    using Connection;
     using Core.Sessions;
-    using GameRoom;
+    using Features.Game;
     internal sealed record MatchPair(IClientSession First, IClientSession Second);
     internal sealed record ConfirmedMatch(string MatchId, MatchPair Players);
     internal enum MatchRequestStatus

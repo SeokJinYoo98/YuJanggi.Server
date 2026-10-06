@@ -8,16 +8,16 @@ using YuJanggi.Protocol.Matching;
 using YuJanggi.Protocol.Connection;
 using YuJanggi.Protocol.Serialization;
 using YuJanggi.Server;
-using YuJanggi.Server.ClientSession;
-using YuJanggi.Server.Handlers;
-using YuJanggi.Server.GameRoom;
-using YuJanggi.Server.Lobby;
-using YuJanggi.Server.Transport;
+using YuJanggi.Server.Connection;
+using YuJanggi.Server.Features.Login;
+using YuJanggi.Server.Features.Game;
+using YuJanggi.Server.Features.Lobby;
+using YuJanggi.Server.Transport.Tcp;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using static YuJanggi.Server.Tests.Connection.TestSupport;
 using Peer = YuJanggi.Server.Tests.Connection.Peer;
-using ClientSession = YuJanggi.Server.ClientSession.ClientSession;
+using ClientSession = YuJanggi.Server.Connection.ClientSession;
 
 namespace YuJanggi.Server.Tests.Connection
 {
@@ -38,7 +38,7 @@ namespace YuJanggi.Server.Tests.Connection
             var response = await peer.Read(token);
             Assert.AreEqual("before", response.RequestId);
             Assert.AreEqual(MatchingResult.HandshakeRequired, response.GetPayload<MatchingStartResponse>().Result);
-            await new ProtocolHandshakeHandler(new ConnectionService(new ClientSessionManager(), new Lock()))
+            await new ProtocolHandshakeHandler(new LoginService(new LoginManager()))
                 .HandleAsync(peer.Session, new ClientMessage
             {
                 Type = ClientMessageType.HandshakeRequest, RequestId = "handshake",
@@ -59,7 +59,6 @@ namespace YuJanggi.Server.Tests.Connection
         [TestCategory("Connection")]
         public async Task DisconnectCleansSessionAndQueue()
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             var token = timeout.Token;
             using var first = await Peer.Create();
             using var second = await Peer.Create();

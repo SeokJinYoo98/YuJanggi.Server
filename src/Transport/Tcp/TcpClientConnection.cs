@@ -1,6 +1,6 @@
 using System.Net.Sockets;
 
-namespace YuJanggi.Server.Transport
+namespace YuJanggi.Server.Transport.Tcp
 {
     using Protocol.Framing;
     using Protocol.Messages;

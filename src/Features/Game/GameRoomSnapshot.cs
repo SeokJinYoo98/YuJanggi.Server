@@ -1,4 +1,4 @@
-namespace YuJanggi.Server.GameRoom
+namespace YuJanggi.Server.Features.Game
 {
     using State;
     internal sealed record GameRoomPlayerSnapshot(

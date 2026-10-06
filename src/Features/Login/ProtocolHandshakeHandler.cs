@@ -1,9 +1,8 @@
-namespace YuJanggi.Server.Handlers
+namespace YuJanggi.Server.Features.Login
 {
     using Protocol.Connection;
     using Protocol.Messages;
 
-    using ClientSession;
     using Core.Sessions;
     using Core.Messaging;
 
@@ -12,11 +11,11 @@ namespace YuJanggi.Server.Handlers
     /// </summary>
     internal sealed class ProtocolHandshakeHandler : IMessageHandler
     {
-        private readonly ConnectionService _connectionService;
+        private readonly LoginService _loginService;
 
-        public ProtocolHandshakeHandler(ConnectionService connectionService)
+        public ProtocolHandshakeHandler(LoginService loginService)
         {
-            _connectionService = connectionService;
+            _loginService = loginService;
         }
 
         public async Task HandleAsync(
@@ -38,7 +37,7 @@ namespace YuJanggi.Server.Handlers
                 message.GetPayload<ProtocolHandshakeRequest>();
 
             ProtocolHandshakeResult result =
-                _connectionService.ValidateHandshake(request);
+                _loginService.ValidateHandshake(request);
 
             var response = new ProtocolHandshakeResponse
             {
@@ -55,7 +54,7 @@ namespace YuJanggi.Server.Handlers
                 responseMessage,
                 cancellationToken);
 
-            _connectionService.CompleteHandshake(session, result);
+            _loginService.CompleteHandshake(session, result);
         }
     }
 }

@@ -1,7 +1,7 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 
-namespace YuJanggi.Server.Transport
+namespace YuJanggi.Server.Transport.Tcp
 {
     /// <summary>
     /// TCP 서버 포트를 열고 클라이언트 연결 요청을 수락합니다.

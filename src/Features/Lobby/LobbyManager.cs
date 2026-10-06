@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace YuJanggi.Server.Lobby
+namespace YuJanggi.Server.Features.Lobby
 {
-    using ClientSession;
+    using Connection;
     using Core.Sessions;
 
     /// <summary>매칭 대기열과 참가자별 매치 인덱스를 관리합니다.</summary>

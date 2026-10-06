@@ -1,8 +1,8 @@
 
-namespace YuJanggi.Server.ClientSession
+namespace YuJanggi.Server.Connection
 {
     using Core.Sessions;
-    using Transport;
+    using Transport.Tcp;
 
     internal static class ClientSessionFactory
     {

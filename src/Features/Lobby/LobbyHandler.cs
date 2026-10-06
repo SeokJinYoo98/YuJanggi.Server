@@ -1,11 +1,11 @@
-namespace YuJanggi.Server.Lobby
+namespace YuJanggi.Server.Features.Lobby
 {
     using Engine.Domain;
 
     using Protocol.Matching;
     using Protocol.Messages;
 
-    using ClientSession;
+    using Connection;
     using Core.Sessions;
     using Core.Messaging;
 

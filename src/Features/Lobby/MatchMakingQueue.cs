@@ -1,8 +1,8 @@
 
 
-namespace YuJanggi.Server.Lobby
+namespace YuJanggi.Server.Features.Lobby
 {
-    using ClientSession;
+    using Connection;
     using Core.Sessions;
     internal class MatchMakingQueue
     {

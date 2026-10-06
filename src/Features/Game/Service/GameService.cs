@@ -1,9 +1,9 @@
-namespace YuJanggi.Server.GameRoom
+namespace YuJanggi.Server.Features.Game
 {
     using Protocol.InGame;
     using Protocol.Matching;
 
-    using ClientSession;
+    using Connection;
     using Core.Sessions;
     using State;
 
