@@ -2,7 +2,7 @@ namespace YuJanggi.Server.GameRoom
 {
     using ClientSession;
 
-    /// <summary>게임룸의 생성, 조회, 제거 및 수명을 관리합니다.</summary>
+    /// <summary>게임룸 컬렉션의 생성, 조회, 제거를 관리합니다.</summary>
     internal sealed class GameRoomManager : IAsyncDisposable
     {
         #region Fields
@@ -75,7 +75,7 @@ namespace YuJanggi.Server.GameRoom
             }
         }
 
-        public Task RemoveRoomsForPlayerAsync(Guid clientId)
+        public GameRoom[] RemoveRoomsForPlayer(Guid clientId)
         {
             GameRoom[] rooms;
             lock (_roomSync)
@@ -85,14 +85,10 @@ namespace YuJanggi.Server.GameRoom
                 foreach (var room in rooms)
                     _gameRooms.Remove(room.MatchId);
             }
-            // Manager 잠금 밖에서 룸을 닫습니다. 연결은 서버가 소유합니다.
-            // 상대에게 연결 종료를 알리는 이벤트와 복구 정책은 추후 Protocol 작업입니다.
-            foreach (var room in rooms)
-                room.Close();
-            return Task.CompletedTask;
+            return rooms;
         }
 
-        public Task ClearAsync()
+        public GameRoom[] Clear()
         {
             GameRoom[] rooms;
             lock (_roomSync)
@@ -101,13 +97,15 @@ namespace YuJanggi.Server.GameRoom
                 rooms = _gameRooms.Values.ToArray();
                 _gameRooms.Clear();
             }
-            foreach (var room in rooms)
-                room.Close();
-            return Task.CompletedTask;
+            return rooms;
         }
 
-        // 기존 서버 및 호출자의 비동기 정리 계약은 유지합니다. 대기할 엔진 작업은 없습니다.
-        public ValueTask DisposeAsync() => new(ClearAsync());
+        // Dispose는 컬렉션만 정리합니다. 게임 종료는 GameService가 담당합니다.
+        public ValueTask DisposeAsync()
+        {
+            Clear();
+            return ValueTask.CompletedTask;
+        }
 
         #endregion
     }

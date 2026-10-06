@@ -171,7 +171,7 @@ namespace YuJanggi.Server.Matching
             }
         }
 
-        /// <summary>연결 종료 시 큐와 상대를 포함한 매칭 상태를 정리하고 룸 종료 작업을 반환합니다.</summary>
+        /// <summary>연결 종료 시 큐와 상대를 포함한 매칭 상태를 정리합니다.</summary>
         public Task DisconnectPlayerAsync(IClientSession session)
         {
             // TODO:
@@ -183,7 +183,7 @@ namespace YuJanggi.Server.Matching
                 _queue.Remove(session);
                 if (_playerMatches.TryGetValue(session.ClientId, out var state))
                     RemoveMatch(state);
-                return _gameRoomManager.RemoveRoomsForPlayerAsync(session.ClientId);
+                return Task.CompletedTask;
             }
         }
 
@@ -193,7 +193,7 @@ namespace YuJanggi.Server.Matching
             {
                 _playerMatches.Clear();
                 _queue = new MatchMakingQueue();
-                return _gameRoomManager.ClearAsync();
+                return Task.CompletedTask;
             }
         }
 

@@ -129,6 +129,24 @@ namespace YuJanggi.Server.GameRoom
 
             _gameRoomManager.RemoveRoom(matchId, room);
         }
+        public Task DisconnectPlayerAsync(IClientSession session)
+        {
+            ArgumentNullException.ThrowIfNull(session);
+            // 연결 종료는 진행 상태와 무관하게 닫습니다. 기존 제거 후 Close 순서를 유지합니다.
+            var rooms = _gameRoomManager.RemoveRoomsForPlayer(session.ClientId);
+            foreach (var room in rooms)
+                room.Close();
+            return Task.CompletedTask;
+        }
+
+        public Task ClearAsync()
+        {
+            // 등록을 차단하고 컬렉션을 비운 뒤, Manager 잠금 밖에서 각 룸을 닫습니다.
+            var rooms = _gameRoomManager.Clear();
+            foreach (var room in rooms)
+                room.Close();
+            return Task.CompletedTask;
+        }
         #endregion
 
         #region Private Methods

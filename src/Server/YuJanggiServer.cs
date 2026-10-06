@@ -141,6 +141,7 @@ namespace YuJanggi.Server
                 finally
                 {
                     await _matchMakingService.ClearAsync();
+                    await _gameService.ClearAsync();
                 }
             }
         }
@@ -222,8 +223,9 @@ namespace YuJanggi.Server
                 removed = _sessionManager.Remove(session.ClientId, out _);
             }
 
-            // 서비스 → 룸 매니저 순서로 잠급니다. 서버 잠금을 보유한 채 서비스를 호출하지 않습니다.
-            Task roomCleanup = _matchMakingService.DisconnectPlayerAsync(session);
+            // 서버 잠금을 해제한 뒤 매칭 상태와 게임룸을 각각 정리합니다.
+            await _matchMakingService.DisconnectPlayerAsync(session);
+            Task roomCleanup = _gameService.DisconnectPlayerAsync(session);
 
             if (!removed)
             {
