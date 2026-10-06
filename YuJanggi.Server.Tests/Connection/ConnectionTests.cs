@@ -1,26 +1,18 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Reflection;
 using System.Text.Json;
-using YuJanggi.Protocol.Framing;
-using YuJanggi.Protocol.Messages;
-using YuJanggi.Protocol.Matching;
-using YuJanggi.Protocol.Connection;
-using YuJanggi.Protocol.Serialization;
-using YuJanggi.Server;
-using YuJanggi.Server.Connection;
-using YuJanggi.Server.Features.Login;
-using YuJanggi.Server.Features.Game;
-using YuJanggi.Server.Features.Lobby;
-using YuJanggi.Server.Transport.Tcp;
-
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using static YuJanggi.Server.Tests.TestSupport.TestSupport;
-using Peer = YuJanggi.Server.Tests.TestSupport.Peer;
-using ClientSession = YuJanggi.Server.Connection.ClientSession;
 
 namespace YuJanggi.Server.Tests.Connection
 {
+    using Protocol.Connection;
+    using Protocol.Matching;
+    using Protocol.Messages;
+    using Server.Connection;
+    using Features.Login;
+    using Features.Lobby;
+    using Tests.TestSupport;
+    using static Tests.TestSupport.TestSupport;
+
     [TestClass]
     [DoNotParallelize]
     public sealed class ConnectionTests
@@ -59,6 +51,7 @@ namespace YuJanggi.Server.Tests.Connection
         [TestCategory("Connection")]
         public async Task DisconnectCleansSessionAndQueue()
         {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             var token = timeout.Token;
             using var first = await Peer.Create();
             using var second = await Peer.Create();

@@ -2,23 +2,19 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text.Json;
-using YuJanggi.Protocol.Framing;
-using YuJanggi.Protocol.Messages;
-using YuJanggi.Protocol.Matching;
-using YuJanggi.Protocol.Connection;
-using YuJanggi.Protocol.Serialization;
-using YuJanggi.Server;
-using YuJanggi.Server.Connection;
-using YuJanggi.Server.Core.Sessions;
-using YuJanggi.Server.Features.Game;
-using YuJanggi.Server.Features.Lobby;
-using YuJanggi.Server.Transport.Tcp;
-
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ClientSession = YuJanggi.Server.Connection.ClientSession;
 
 namespace YuJanggi.Server.Tests.TestSupport
 {
+    using Protocol.Framing;
+    using Protocol.Matching;
+    using Protocol.Messages;
+    using Protocol.Serialization;
+    using Server.Connection;
+    using Core.Sessions;
+    using Features.Game;
+    using Transport.Tcp;
+
     internal static class TestSupport
     {
         internal static GameRoomManager CreateRoomManager(params IClientSession[] participants)

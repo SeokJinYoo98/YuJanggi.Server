@@ -2,12 +2,12 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace YuJanggi.Server.Tests.Game
 {
-    using YuJanggi.Protocol.InGame;
-    using YuJanggi.Protocol.Matching;
-    using YuJanggi.Server.Features.Game;
-    using YuJanggi.Server.Features.Game.State;
-    using YuJanggi.Server.Tests.TestSupport;
-    using static YuJanggi.Server.Tests.TestSupport.TestSupport;
+    using Protocol.InGame;
+    using Protocol.Matching;
+    using Features.Game;
+    using Features.Game.State;
+    using Tests.TestSupport;
+    using static Tests.TestSupport.TestSupport;
 
     [TestClass]
     [TestCategory("Game")]
@@ -44,6 +44,8 @@ namespace YuJanggi.Server.Tests.Game
         [TestMethod]
         public async Task MatchingEndSubmissionsEndAndCloseRoom()
         {
+            using var cho = await Peer.Create();
+            using var han = await Peer.Create();
             await using var rooms = CreateRoomManager(cho.Session, han.Session);
             var room = rooms.CreateGameRoom("end", cho.Session, han.Session);
             var service = new GameService(rooms);
@@ -83,6 +85,8 @@ namespace YuJanggi.Server.Tests.Game
         [TestMethod]
         public async Task MismatchedEndSubmissionCanBeCorrected()
         {
+            using var cho = await Peer.Create();
+            using var han = await Peer.Create();
             await using var rooms = CreateRoomManager(cho.Session, han.Session);
             var room = rooms.CreateGameRoom("mismatch", cho.Session, han.Session);
             var service = new GameService(rooms);
@@ -102,6 +106,8 @@ namespace YuJanggi.Server.Tests.Game
         [TestMethod]
         public async Task InvalidEndRequestsDoNotRecordSubmission()
         {
+            using var cho = await Peer.Create();
+            using var han = await Peer.Create();
             using var outsider = await Peer.Create();
             await using var rooms = CreateRoomManager(cho.Session, han.Session, outsider.Session);
             var room = rooms.CreateGameRoom("invalid", cho.Session, han.Session);
