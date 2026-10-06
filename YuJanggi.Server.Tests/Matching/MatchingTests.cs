@@ -11,7 +11,7 @@ using YuJanggi.Server;
 using YuJanggi.Server.ClientSession;
 using YuJanggi.Server.Handlers;
 using YuJanggi.Server.GameRoom;
-using YuJanggi.Server.Matching;
+using YuJanggi.Server.Lobby;
 using YuJanggi.Server.Transport;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -34,7 +34,7 @@ namespace YuJanggi.Server.Tests.Matching
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             await using var rooms = CreateRoomManager(first.Session);
-            var service = new MatchMakingService(rooms);
+            var service = new LobbyService(new LobbyManager(), rooms);
             Assert.AreEqual(MatchRequestStatus.Accepted, service.RequestMatch(first.Session, out var pair));
             Assert.IsNull(pair);
             Assert.AreEqual(MatchRequestStatus.AlreadyMatching, service.RequestMatch(first.Session, out pair));
@@ -70,7 +70,7 @@ namespace YuJanggi.Server.Tests.Matching
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             await using var rooms = CreateRoomManager(first.Session, second.Session);
-            var handler = new MatchingHandler(new MatchMakingService(rooms));
+            var handler = new LobbyHandler(new LobbyService(new LobbyManager(), rooms));
             var sendLock = first.SendLock;
             await sendLock.WaitAsync(token);
             var firstTask = handler.HandleAsync(first.Session, Request("first"), token);
@@ -107,7 +107,7 @@ namespace YuJanggi.Server.Tests.Matching
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             await using var rooms = CreateRoomManager(first.Session, second.Session);
-            var handler = new MatchingHandler(new MatchMakingService(rooms));
+            var handler = new LobbyHandler(new LobbyService(new LobbyManager(), rooms));
             await handler.HandleAsync(first.Session, Request("first"), token);
             Assert.AreEqual("first", (await first.Read(token)).RequestId);
             await handler.HandleAsync(second.Session, Request("second"), token);
@@ -144,8 +144,8 @@ namespace YuJanggi.Server.Tests.Matching
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             await using var rooms = CreateRoomManager(first.Session, second.Session);
-            var service = new MatchMakingService(rooms);
-            var handler = new MatchingHandler(service);
+            var service = new LobbyService(new LobbyManager(), rooms);
+            var handler = new LobbyHandler(service);
             using var cancelled = new CancellationTokenSource();
             cancelled.Cancel();
             await ExpectFailure(() => handler.HandleAsync(first.Session, Request("cancelled"), cancelled.Token));
@@ -163,8 +163,8 @@ namespace YuJanggi.Server.Tests.Matching
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             await using var rooms = CreateRoomManager(first.Session, second.Session);
-            var service = new MatchMakingService(rooms);
-            var handler = new MatchingHandler(service);
+            var service = new LobbyService(new LobbyManager(), rooms);
+            var handler = new LobbyHandler(service);
             first.Session.Dispose();
             await ExpectFailure(() => handler.HandleAsync(first.Session, Request("failed"), token));
             service.RequestMatch(second.Session, out var pair);
@@ -181,7 +181,7 @@ namespace YuJanggi.Server.Tests.Matching
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             await using var rooms = CreateRoomManager(first.Session, second.Session);
-            var handler = new MatchingHandler(new MatchMakingService(rooms));
+            var handler = new LobbyHandler(new LobbyService(new LobbyManager(), rooms));
             using var cancelled = new CancellationTokenSource();
             await first.SendLock.WaitAsync(token);
             var firstTask = handler.HandleAsync(first.Session, Request("first"), cancelled.Token);
@@ -204,7 +204,7 @@ namespace YuJanggi.Server.Tests.Matching
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             await using var rooms = CreateRoomManager(first.Session, second.Session);
-            var handler = new MatchingHandler(new MatchMakingService(rooms));
+            var handler = new LobbyHandler(new LobbyService(new LobbyManager(), rooms));
             await handler.HandleAsync(first.Session, Request("first"), token);
             await first.Read(token);
             await first.SendLock.WaitAsync(token);
@@ -226,7 +226,7 @@ namespace YuJanggi.Server.Tests.Matching
             var token = timeout.Token;
             using var first = await Peer.Create();
             await using var rooms = CreateRoomManager(first.Session);
-            var service = new MatchMakingService(rooms);
+            var service = new LobbyService(new LobbyManager(), rooms);
             var results = await Task.WhenAll(Enumerable.Range(0, 32).Select(_ => Task.Run(() =>
             {
                 var result = service.RequestMatch(first.Session, out var pair);

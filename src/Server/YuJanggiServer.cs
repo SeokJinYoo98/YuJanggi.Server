@@ -8,7 +8,7 @@ namespace YuJanggi.Server
     using Transport;
     using View;
     using ClientSession;
-    using Matching;
+    using Lobby;
     using GameRoom;
 
     /// <summary>
@@ -28,12 +28,12 @@ namespace YuJanggi.Server
         private readonly ClientSessionManager   _sessionManager;
         private readonly ConnectionService _connectionService;
         private readonly GameRoomManager _gameRoomManager;
-        private readonly MatchMakingService _matchMakingService;
+        private readonly LobbyService _lobbyService;
         private readonly GameService _gameService;
         private readonly Lock _roomSync = new();
 
         private readonly ProtocolHandshakeHandler _handshakeHandler;
-        private readonly MatchingHandler _matchingHandler;
+        private readonly LobbyHandler _lobbyHandler;
         private readonly GameHandler _gameHandler;
 
         #endregion
@@ -51,10 +51,10 @@ namespace YuJanggi.Server
 
             _gameRoomManager = new GameRoomManager(_sessionManager, _roomSync);
             _connectionService = new ConnectionService(_sessionManager, _roomSync);
-            _matchMakingService = new MatchMakingService(_gameRoomManager);
+            _lobbyService = new LobbyService(new LobbyManager(), _gameRoomManager);
             _gameService = new GameService(_gameRoomManager);
             _handshakeHandler = new ProtocolHandshakeHandler(_connectionService);
-            _matchingHandler = new MatchingHandler(_matchMakingService);
+            _lobbyHandler = new LobbyHandler(_lobbyService);
             _gameHandler = new GameHandler(_gameService);
         }
 
@@ -133,7 +133,7 @@ namespace YuJanggi.Server
                 }
                 finally
                 {
-                    await _matchMakingService.ClearAsync();
+                    await _lobbyService.ClearAsync();
                     await _gameService.ClearAsync();
                 }
             }
@@ -165,7 +165,7 @@ namespace YuJanggi.Server
                         case ClientMessageType.MatchingStartRequest:
                         case ClientMessageType.MatchingCancelRequest:
                         case ClientMessageType.FormationSubmit:
-                            await _matchingHandler.HandleAsync(
+                            await _lobbyHandler.HandleAsync(
                                 session, message, cancellationToken);
                             break;
 
@@ -212,7 +212,7 @@ namespace YuJanggi.Server
             bool removed = _connectionService.UnregisterSession(session);
 
             // 서버 잠금을 해제한 뒤 매칭 상태와 게임룸을 각각 정리합니다.
-            await _matchMakingService.DisconnectPlayerAsync(session);
+            await _lobbyService.DisconnectPlayerAsync(session);
             Task roomCleanup = _gameService.DisconnectPlayerAsync(session);
 
             if (!removed)

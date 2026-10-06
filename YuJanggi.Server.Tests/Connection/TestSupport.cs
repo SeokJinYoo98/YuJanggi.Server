@@ -11,7 +11,7 @@ using YuJanggi.Server;
 using YuJanggi.Server.ClientSession;
 using YuJanggi.Server.Handlers;
 using YuJanggi.Server.GameRoom;
-using YuJanggi.Server.Matching;
+using YuJanggi.Server.Lobby;
 using YuJanggi.Server.Transport;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;

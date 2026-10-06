@@ -1,4 +1,4 @@
-namespace YuJanggi.Server.Handlers
+namespace YuJanggi.Server.Lobby
 {
     using Engine.Domain;
 
@@ -6,19 +6,19 @@ namespace YuJanggi.Server.Handlers
     using Protocol.Messages;
 
     using ClientSession;
-    using Matching;
+    using Handlers;
 
     /// <summary>매칭 요청을 해석하고 응답 및 매칭 이벤트를 전송합니다.</summary>
-    internal sealed class MatchingHandler : IMessageHandler
+    internal sealed class LobbyHandler : IMessageHandler
     {
-        private readonly MatchMakingService _matchMakingService;
+        private readonly LobbyService _lobbyService;
         private readonly Lock _responseSync = new();
         private readonly Dictionary<Guid, TaskCompletionSource<bool>> _pendingResponses = new();
 
-        public MatchingHandler(
-            MatchMakingService matchMakingService)
+        public LobbyHandler(
+            LobbyService lobbyService)
         {
-            _matchMakingService     = matchMakingService;
+            _lobbyService     = lobbyService;
         }
 
         public Task HandleAsync(
@@ -62,7 +62,7 @@ namespace YuJanggi.Server.Handlers
                 matchPair = null;
                 result = _pendingResponses.ContainsKey(session.ClientId)
                     ? MatchRequestStatus.AlreadyMatching
-                    : _matchMakingService.RequestMatch(session, out matchPair);
+                    : _lobbyService.RequestMatch(session, out matchPair);
                 if (result == MatchRequestStatus.Accepted)
                 {
                     responseCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -98,7 +98,7 @@ namespace YuJanggi.Server.Handlers
                     if (responsesSent.All(sent => sent))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        var confirmed = _matchMakingService.ConfirmMatch(matchPair);
+                        var confirmed = _lobbyService.ConfirmMatch(matchPair);
                         if (confirmed is not null)
                             await SendMatchingFoundAsync(confirmed.MatchId, confirmed.Players, cancellationToken);
                     }
@@ -106,7 +106,7 @@ namespace YuJanggi.Server.Handlers
                 finally
                 {
                     // 전송 대기 취소/실패 시 미확정 예약만 해제합니다. 확정 매치는 유지합니다.
-                    _matchMakingService.RejectPendingPair(matchPair);
+                    _lobbyService.RejectPendingPair(matchPair);
                 }
             }
         }
@@ -125,21 +125,21 @@ namespace YuJanggi.Server.Handlers
             lock (_responseSync)
             {
                 if (!responseSent)
-                    _matchMakingService.RejectPendingMatch(session);
+                    _lobbyService.RejectPendingMatch(session);
                 completion.SetResult(responseSent);
                 _pendingResponses.Remove(session.ClientId);
             }
             // TODO:
             // 응답 실패 또는 토큰 취소 전에 쌍이 생성되었다면 상대도 이미 큐에서 빠진 상태입니다.
             // 현재는 MatchingFound를 보내지 않지만 상대는 Accepted 이후 계속 기다릴 수 있습니다.
-            // 매칭 실패 통지는 Handler에서, 재대기 정책은 MatchMakingService에서 처리해야 합니다.
+            // 매칭 실패 통지는 Handler에서, 재대기 정책은 LobbyService에서 처리해야 합니다.
         }
 
         private Task HandleCancelAsync(
             IClientSession session, string requestId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = _matchMakingService.CancelMatch(session);
+            var result = _lobbyService.CancelMatch(session);
             return SendResponseAsync(session, ServerMessageType.MatchingCancelResponse, requestId,
                 new MatchingCancelResponse { Result = ToProtocolResult(result) }, cancellationToken);
         }
@@ -171,7 +171,7 @@ namespace YuJanggi.Server.Handlers
 
             if (!formation.HasValue)
                 throw new InvalidDataException("포진 제출 값이 없거나 잘못되었습니다.");
-            var submission = _matchMakingService.SubmitFormation(session, payload.MatchId, formation.Value);
+            var submission = _lobbyService.SubmitFormation(session, payload.MatchId, formation.Value);
 
             if (submission.IsReady)
                 await SendGameReadyAsync(submission, cancellationToken);

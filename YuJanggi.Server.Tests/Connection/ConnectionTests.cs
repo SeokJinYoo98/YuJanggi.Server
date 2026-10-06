@@ -11,7 +11,7 @@ using YuJanggi.Server;
 using YuJanggi.Server.ClientSession;
 using YuJanggi.Server.Handlers;
 using YuJanggi.Server.GameRoom;
-using YuJanggi.Server.Matching;
+using YuJanggi.Server.Lobby;
 using YuJanggi.Server.Transport;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -33,7 +33,7 @@ namespace YuJanggi.Server.Tests.Connection
             var token = timeout.Token;
             using var peer = await Peer.Create(false);
             await using var rooms = CreateRoomManager(peer.Session);
-            var handler = new MatchingHandler(new MatchMakingService(rooms));
+            var handler = new LobbyHandler(new LobbyService(new LobbyManager(), rooms));
             await handler.HandleAsync(peer.Session, Request("before"), token);
             var response = await peer.Read(token);
             Assert.AreEqual("before", response.RequestId);
@@ -64,8 +64,8 @@ namespace YuJanggi.Server.Tests.Connection
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             var server = new YuJanggiServer();
-            var service = (MatchMakingService)Field(server, "_matchMakingService");
-            var handler = new MatchingHandler(service);
+            var service = (LobbyService)Field(server, "_lobbyService");
+            var handler = new LobbyHandler(service);
             await handler.HandleAsync(first.Session, new ClientMessage
             { Type = ClientMessageType.MatchingCancelRequest, RequestId = "cancel" }, token);
             var response = await first.Read(token);

@@ -1,6 +1,6 @@
 
 
-namespace YuJanggi.Server.Matching
+namespace YuJanggi.Server.Lobby
 {
     using Engine.Domain;
 
@@ -36,54 +36,43 @@ namespace YuJanggi.Server.Matching
     }
 
     /// <summary>매칭 예약·확정 및 포진 접수를 관리합니다. 메시지 생성이나 네트워크 전송은 하지 않습니다.</summary>
-    internal sealed class MatchMakingService
+    internal sealed class LobbyService
     {
-        private sealed class MatchState
-        {
-            public MatchState(MatchPair players) => Players = players;
-            public MatchPair Players { get; }
-            public string? MatchId { get; set; }
-            public Formation? ChoFormation { get; set; }
-            public Formation? HanFormation { get; set; }
-            public bool RoomCreated { get; set; }
-        }
-
-        private readonly Lock _sync = new();
-        private MatchMakingQueue _queue = new();
-        private readonly Dictionary<Guid, MatchState> _playerMatches = new();
+        private readonly LobbyManager _lobbyManager;
         private readonly GameRoomManager _gameRoomManager;
 
-        public MatchMakingService(GameRoomManager gameRoomManager)
+        public LobbyService(LobbyManager lobbyManager, GameRoomManager gameRoomManager)
         {
+            _lobbyManager = lobbyManager;
             _gameRoomManager = gameRoomManager;
         }
 
         public MatchRequestStatus RequestMatch(IClientSession session, out MatchPair? matchPair)
         {
             matchPair = null;
-            lock (_sync)
+            lock (_lobbyManager.SyncRoot)
             {
                 if (!session.IsHandshakeCompleted)
                     return MatchRequestStatus.HandshakeRequired;
                 if (FindMatch(session.ClientId) is { } match)
                     return match.MatchId is null ? MatchRequestStatus.AlreadyMatching : MatchRequestStatus.AlreadyMatched;
-                if (_queue.Contains(session))
+                if (_lobbyManager.ContainsQueued(session))
                     return MatchRequestStatus.AlreadyMatching;
 
-                _queue.Enqueue(session);
-                matchPair = TryCreateMatchPair();
+                _lobbyManager.Enqueue(session);
+                matchPair = _lobbyManager.TryCreateMatchPair();
                 return MatchRequestStatus.Accepted;
             }
         }
 
         public MatchCancelStatus CancelMatch(IClientSession session)
         {
-            lock (_sync)
+            lock (_lobbyManager.SyncRoot)
             {
                 // 쌍을 확보한 이후에는 큐 취소로 상대 예약을 무효화하지 않습니다.
                 if (FindMatch(session.ClientId) is not null)
                     return MatchCancelStatus.AlreadyMatched;
-                _queue.Remove(session);
+                _lobbyManager.RemoveQueued(session);
                 return MatchCancelStatus.Cancelled;
             }
         }
@@ -91,44 +80,44 @@ namespace YuJanggi.Server.Matching
         /// <summary>핸들러가 양쪽 Accepted 전송 성공을 확인한 뒤 호출합니다. 룸은 생성하지 않습니다.</summary>
         public ConfirmedMatch? ConfirmMatch(MatchPair pair)
         {
-            lock (_sync)
+            lock (_lobbyManager.SyncRoot)
             {
-                if (!_playerMatches.TryGetValue(pair.First.ClientId, out var state) ||
+                if (!_lobbyManager.TryGetMatch(pair.First.ClientId, out var state) ||
                     !ReferenceEquals(state.Players, pair) || state.MatchId is not null ||
-                    !_playerMatches.TryGetValue(pair.Second.ClientId, out var other) ||
+                    !_lobbyManager.TryGetMatch(pair.Second.ClientId, out var other) ||
                     !ReferenceEquals(state, other))
                     return null;
 
-                state.MatchId = Guid.NewGuid().ToString();
-                return new ConfirmedMatch(state.MatchId, pair);
+                state.Confirm(Guid.NewGuid().ToString());
+                return new ConfirmedMatch(state.MatchId!, pair);
             }
         }
 
         /// <summary>응답 전송 실패 시 큐 또는 아직 확정되지 않은 예약을 해제합니다.</summary>
         public void RejectPendingMatch(IClientSession session)
         {
-            lock (_sync)
+            lock (_lobbyManager.SyncRoot)
             {
-                _queue.Remove(session);
-                if (_playerMatches.TryGetValue(session.ClientId, out var state) && state.MatchId is null)
-                    RemoveMatch(state);
+                _lobbyManager.RemoveQueued(session);
+                if (_lobbyManager.TryGetMatch(session.ClientId, out var state) && state.MatchId is null)
+                    _lobbyManager.RemoveMatch(state);
             }
         }
 
         public void RejectPendingPair(MatchPair pair)
         {
-            lock (_sync)
+            lock (_lobbyManager.SyncRoot)
             {
-                if (_playerMatches.TryGetValue(pair.First.ClientId, out var state) &&
+                if (_lobbyManager.TryGetMatch(pair.First.ClientId, out var state) &&
                     ReferenceEquals(state.Players, pair) && state.MatchId is null)
-                    RemoveMatch(state);
+                    _lobbyManager.RemoveMatch(state);
             }
         }
 
         /// <summary>현재 확정 매치의 참가자 포진을 한 번 접수하며, 양쪽 접수 시 한 번만 룸을 생성합니다.</summary>
         public FormationSubmission SubmitFormation(IClientSession session, string matchId, Formation formation)
         {
-            lock (_sync)
+            lock (_lobbyManager.SyncRoot)
             {
                 if (!session.IsHandshakeCompleted)
                     return new(FormationSubmissionStatus.HandshakeRequired);
@@ -143,30 +132,14 @@ namespace YuJanggi.Server.Matching
                 bool isCho = state.Players.First.ClientId == session.ClientId;
                 Formation? submitted = isCho ? state.ChoFormation : state.HanFormation;
                 if (submitted.HasValue)
-                    return new(FormationSubmissionStatus.AlreadySubmitted, state.RoomCreated, state.MatchId);
+                    return new(FormationSubmissionStatus.AlreadySubmitted, state.GameTransitionCompleted, state.MatchId);
 
-                if (isCho)
-                    state.ChoFormation = formation;
-                else
-                    state.HanFormation = formation;
+                state.SetFormation(session, formation);
 
-                if (state.ChoFormation.HasValue && state.HanFormation.HasValue)
-                {
-                    try
-                    {
-                        _gameRoomManager.CreateGameRoom(state.MatchId,
-                            state.Players.First, state.Players.Second);
-                        state.RoomCreated = true;
-                    }
-                    catch
-                    {
-                        // 두 번째 제출은 확정하지 않아 룸 생성 실패 후 다시 시도할 수 있습니다.
-                        if (isCho) state.ChoFormation = null;
-                        else state.HanFormation = null;
-                        throw;
-                    }
-                }
-                return new(FormationSubmissionStatus.Accepted, state.RoomCreated, state.MatchId,
+                if (state.AllFormationsSubmitted && !state.GameTransitionCompleted)
+                    CompleteGameTransition(state, session);
+
+                return new(FormationSubmissionStatus.Accepted, state.GameTransitionCompleted, state.MatchId,
                     state.ChoFormation, state.HanFormation, state.Players);
             }
         }
@@ -178,55 +151,54 @@ namespace YuJanggi.Server.Matching
             // 포진 접수 중 연결이 끊기면 양쪽 매칭 상태는 해제되지만 상대에게 종료 메시지는 없습니다.
             // 상대는 다음 제출 시 NotMatched를 받거나 매칭 화면에서 계속 기다릴 수 있습니다.
             // 매칭 실패 이벤트 프로토콜에서 상대 알림과 재매칭 정책을 연결해야 합니다.
-            lock (_sync)
+            lock (_lobbyManager.SyncRoot)
             {
-                _queue.Remove(session);
-                if (_playerMatches.TryGetValue(session.ClientId, out var state))
-                    RemoveMatch(state);
+                _lobbyManager.RemoveQueued(session);
+                if (_lobbyManager.TryGetMatch(session.ClientId, out var state))
+                    _lobbyManager.RemoveMatch(state);
                 return Task.CompletedTask;
             }
         }
 
         public Task ClearAsync()
         {
-            lock (_sync)
+            lock (_lobbyManager.SyncRoot)
             {
-                _playerMatches.Clear();
-                _queue = new MatchMakingQueue();
+                _lobbyManager.Clear();
                 return Task.CompletedTask;
             }
         }
 
         private MatchState? FindMatch(Guid clientId)
         {
-            if (!_playerMatches.TryGetValue(clientId, out var state))
+            if (!_lobbyManager.TryGetMatch(clientId, out var state))
                 return null;
-            if (state.RoomCreated && !_gameRoomManager.TryGetRoom(state.MatchId!, out _))
+            // 진행 중에는 재매칭·중복 제출을 막기 위해 Lobby 기록을 유지합니다.
+            // Game이 Room을 제거한 뒤 조회되면 Lobby 기록만 정리합니다.
+            if (state.GameTransitionCompleted && !_gameRoomManager.TryGetRoom(state.MatchId!, out _))
             {
-                RemoveMatch(state);
+                _lobbyManager.RemoveMatch(state);
                 return null;
             }
             return state;
         }
 
-        private void RemoveMatch(MatchState state)
+        // LobbyManager.SyncRoot 안에서 호출합니다. 생성 이후 Room 생명주기는 Game이 관리합니다.
+        private void CompleteGameTransition(MatchState state, IClientSession submittingSession)
         {
-            _playerMatches.Remove(state.Players.First.ClientId);
-            _playerMatches.Remove(state.Players.Second.ClientId);
+            try
+            {
+                _gameRoomManager.CreateGameRoom(state.MatchId!,
+                    state.Players.First, state.Players.Second);
+                state.MarkGameTransitionCompleted();
+            }
+            catch
+            {
+                // 생성 실패 시 이번 제출만 되돌리고 이전 상대 포진은 유지합니다.
+                state.SetFormation(submittingSession, null);
+                throw;
+            }
         }
 
-        private MatchPair? TryCreateMatchPair()
-        {
-            if (_queue.Count < 2)
-                return null;
-            if (!_queue.TryDequeue(out var first, out var second))
-                throw new InvalidOperationException("매칭 대기열의 개수와 인출 결과가 일치하지 않습니다.");
-
-            var pair = new MatchPair(first!, second!);
-            var state = new MatchState(pair);
-            _playerMatches.Add(pair.First.ClientId, state);
-            _playerMatches.Add(pair.Second.ClientId, state);
-            return pair;
-        }
     }
 }
