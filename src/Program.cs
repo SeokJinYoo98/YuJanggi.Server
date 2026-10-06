@@ -3,12 +3,13 @@
     using Server;
     public static class Program
     {
-        private static readonly YuJanggiServer _server = new YuJanggiServer();
-
+        private static readonly YuJanggiServer _server 
+            = new YuJanggiServer();
+         
         public static async Task Main()
         {
             try
-            {
+            { 
                 View.NetworkView.ShowCommands();
                 Task serverTask = _server.RunAsync();
                 await ReadCommandsAsync(serverTask);
