@@ -1,4 +1,4 @@
-﻿namespace YuJanggi.Server.V2
+﻿namespace YuJanggi.Server
 {
     using Server;
     public static class Program

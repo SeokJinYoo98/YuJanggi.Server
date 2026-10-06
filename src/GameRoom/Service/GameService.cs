@@ -1,9 +1,11 @@
-namespace YuJanggi.Server.V2.GameRoom
+namespace YuJanggi.Server.GameRoom
 {
-    using ClientSession;
-    using State;
     using Protocol.InGame;
     using Protocol.Matching;
+
+    using ClientSession;
+    using State;
+
 
     internal sealed record ConfirmedMove(
         ProtocolPlayerTeam Team, byte FromX, byte FromZ, byte ToX, byte ToZ);

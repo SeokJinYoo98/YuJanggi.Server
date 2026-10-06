@@ -1,8 +1,9 @@
-namespace YuJanggi.Server.V2.ClientSession
+namespace YuJanggi.Server.ClientSession
 {
+    using Protocol.Messages;
+
     using Transport;
-    using YuJanggi.Protocol.Messages;
-    using YuJanggi.Server.V2.View;
+    using View;
 
     /// <summary>
     /// 서버에 연결된 단일 클라이언트의 세션 정보를 관리합니다.

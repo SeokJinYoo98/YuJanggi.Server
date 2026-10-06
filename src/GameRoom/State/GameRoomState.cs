@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace YuJanggi.Server.V2.GameRoom.State
+﻿
+namespace YuJanggi.Server.GameRoom.State
 {
     internal enum GameRoomState
     {

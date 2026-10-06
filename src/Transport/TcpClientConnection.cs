@@ -1,9 +1,6 @@
-using System;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace YuJanggi.Server.V2.Transport
+namespace YuJanggi.Server.Transport
 {
     using Protocol.Framing;
     using Protocol.Messages;

@@ -1,4 +1,4 @@
-namespace YuJanggi.Server.V2.GameRoom.State
+namespace YuJanggi.Server.GameRoom.State
 {
     [Flags]
     internal enum GameEndSubmittedPlayers

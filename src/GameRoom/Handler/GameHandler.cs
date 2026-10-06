@@ -1,10 +1,11 @@
-using YuJanggi.Server.V2.Handlers;
 
 
-namespace YuJanggi.Server.V2.GameRoom
+namespace YuJanggi.Server.GameRoom
 {
     using Protocol.InGame;
     using Protocol.Messages;
+
+    using Handlers;
     using ClientSession;
 
     /// <summary>인게임 Protocol 요청을 검증하고 서비스 결과를 메시지로 생성·전송합니다.</summary>

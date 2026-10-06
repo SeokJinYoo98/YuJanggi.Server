@@ -1,14 +1,11 @@
-using System.Threading;
-using System.Threading.Tasks;
-using YuJanggi.Engine;
-namespace YuJanggi.Server.V2.Handlers
+namespace YuJanggi.Server.Handlers
 {
     using Protocol.Connection;
     using Protocol.Messages;
 
     using Transport;
     using View;
-    using YuJanggi.Server.V2.ClientSession;
+    using ClientSession;
 
     /// <summary>
     /// 클라이언트의 핸드셰이크 요청을 처리합니다.

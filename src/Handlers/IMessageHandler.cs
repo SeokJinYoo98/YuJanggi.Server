@@ -1,12 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
-using YuJanggi.Protocol.Messages;
-using YuJanggi.Server.V2.ClientSession;
-using YuJanggi.Server.V2.Transport;
 
-namespace YuJanggi.Server.V2.Handlers
+
+
+
+namespace YuJanggi.Server.Handlers
 {
+    using Protocol.Messages;
+    using ClientSession;
     internal interface IMessageHandler
     {
         Task HandleAsync(

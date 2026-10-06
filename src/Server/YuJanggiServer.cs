@@ -1,15 +1,15 @@
-using System;
 using System.Net;
 
-namespace YuJanggi.Server.V2.Server
+namespace YuJanggi.Server
 {
+    using Protocol.Messages;
+
     using Handlers;
     using Transport;
     using View;
-    using YuJanggi.Protocol.Messages;
-    using YuJanggi.Server.V2.ClientSession;
-    using YuJanggi.Server.V2.Matching;
-    using YuJanggi.Server.V2.GameRoom;
+    using ClientSession;
+    using Matching;
+    using GameRoom;
 
     /// <summary>
     /// 유장기 서버의 실행 및 클라이언트 연결 수락을 관리합니다.

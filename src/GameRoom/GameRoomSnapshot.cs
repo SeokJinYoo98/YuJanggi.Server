@@ -1,7 +1,6 @@
-using YuJanggi.Server.V2.GameRoom.State;
-
-namespace YuJanggi.Server.V2.GameRoom
+namespace YuJanggi.Server.GameRoom
 {
+    using State;
     internal sealed record GameRoomPlayerSnapshot(
         Guid ClientId,
         string? Nickname,

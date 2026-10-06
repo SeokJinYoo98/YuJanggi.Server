@@ -1,4 +1,4 @@
-namespace YuJanggi.Server.V2.GameRoom
+namespace YuJanggi.Server.GameRoom
 {
     using ClientSession;
     using State;

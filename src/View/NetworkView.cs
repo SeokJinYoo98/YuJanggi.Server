@@ -1,14 +1,11 @@
-using System;
-using YuJanggi.Protocol.Connection;
-using YuJanggi.Protocol.Matching;
-using YuJanggi.Protocol.Messages;
-namespace YuJanggi.Server.V2.View
-{
-    using System.Text.Json;
-    using System.Text;
-    using YuJanggi.Server.V2.GameRoom;
-    using YuJanggi.Engine;
+using System.Text.Json;
+using System.Text;
 
+namespace YuJanggi.Server.View
+{
+    using Protocol.Messages;
+
+    using GameRoom;
 
     internal enum NetworkMessageType
     {

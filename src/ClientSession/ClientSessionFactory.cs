@@ -1,7 +1,8 @@
-﻿using YuJanggi.Server.V2.Transport;
-
-namespace YuJanggi.Server.V2.ClientSession
+﻿
+namespace YuJanggi.Server.ClientSession
 {
+    using Transport;
+
     internal static class ClientSessionFactory
     {
         private static int _clientNumber;

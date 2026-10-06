@@ -1,8 +1,9 @@
 
-using YuJanggi.Engine.Domain;
 
-namespace YuJanggi.Server.V2.Matching
+namespace YuJanggi.Server.Matching
 {
+    using Engine.Domain;
+
     using ClientSession;
     using GameRoom;
     internal sealed record MatchPair(IClientSession First, IClientSession Second);

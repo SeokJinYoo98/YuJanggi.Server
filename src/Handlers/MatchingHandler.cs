@@ -1,14 +1,13 @@
-using YuJanggi.Protocol.Matching;
-using YuJanggi.Protocol.Messages;
-
-using YuJanggi.Engine.Domain;
-
-using YuJanggi.Server.V2.ClientSession;
-using YuJanggi.Server.V2.Matching;
-using YuJanggi.Server.V2.View;
-
-namespace YuJanggi.Server.V2.Handlers
+namespace YuJanggi.Server.Handlers
 {
+    using Engine.Domain;
+
+    using Protocol.Matching;
+    using Protocol.Messages;
+
+    using ClientSession;
+    using Matching;
+
     /// <summary>매칭 요청을 해석하고 응답 및 매칭 이벤트를 전송합니다.</summary>
     internal sealed class MatchingHandler : IMessageHandler
     {

@@ -1,8 +1,8 @@
-using System.Collections.Generic;
-using YuJanggi.Server.V2.ClientSession;
 
-namespace YuJanggi.Server.V2.Matching
+
+namespace YuJanggi.Server.Matching
 {
+    using ClientSession;
     internal class MatchMakingQueue
     {
         #region Fields

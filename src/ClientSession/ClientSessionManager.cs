@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Concurrent;
 
-namespace YuJanggi.Server.V2.ClientSession
+namespace YuJanggi.Server.ClientSession
 {
     internal sealed class ClientSessionManager
     {
