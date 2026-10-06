@@ -52,19 +52,19 @@ GameSceneReadyRequest (양쪽) → GameStartEvent
 
 | 구성 요소 | 역할 |
 | --- | --- |
-| [`YuJanggiServer`](Server/YuJanggiServer.cs) | 연결 수락과 메시지 핸들러 분배 |
-| [`ClientSession`](ClientSession/ClientSession.cs) | 클라이언트 연결과 송수신 |
-| [`ProtocolHandshakeHandler`](Handlers/ProtocolHandshakeHandler.cs) | 버전 확인 |
-| [`MatchingHandler`](Handlers/MatchingHandler.cs) | 매칭·포진 요청 처리와 이벤트 전송 |
-| [`MatchMakingService`](Matching/MatchMakingService.cs) | 대기열·매치·포진 상태 관리 |
-| [`GameRoom`](GameRoom/GameRoom.cs) | 양쪽 준비와 시작 상태 관리 |
-| [`GameHandler`](GameRoom/Handler/GameHandler.cs) | 게임 화면 준비 요청 처리 |
+| [`YuJanggiServer`](src/Server/YuJanggiServer.cs) | 연결 수락과 메시지 핸들러 분배 |
+| [`ClientSession`](src/ClientSession/ClientSession.cs) | 클라이언트 연결과 송수신 |
+| [`ProtocolHandshakeHandler`](src/Handlers/ProtocolHandshakeHandler.cs) | 버전 확인 |
+| [`MatchingHandler`](src/Handlers/MatchingHandler.cs) | 매칭·포진 요청 처리와 이벤트 전송 |
+| [`MatchMakingService`](src/Matching/MatchMakingService.cs) | 대기열·매치·포진 상태 관리 |
+| [`GameRoom`](src/GameRoom/GameRoom.cs) | 양쪽 준비와 시작 상태 관리 |
+| [`GameHandler`](src/GameRoom/Handler/GameHandler.cs) | 게임 화면 준비 요청 처리 |
 
 ## 실행 방법
 
 1. .NET 10 SDK와 형제 폴더의 `YuJanggi.Engine`, `YuJanggi.Protocol` NuGet 패키지를 준비합니다.
 2. [`NuGet.Config`](NuGet.Config)의 로컬 패키지 경로를 확인합니다.
-3. 서버 저장소에서 `dotnet run --project YuJanggi.Server.V2.csproj`을 실행합니다.
+3. 서버 저장소에서 `dotnet run --project src/YuJanggi.Server.V2.csproj`을 실행합니다.
 4. Unity 클라이언트를 서버의 TCP 포트 `7777`에 연결합니다.
 
 ## 관련 프로젝트
