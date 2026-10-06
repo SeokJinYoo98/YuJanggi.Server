@@ -21,7 +21,6 @@ jobs:
       SERVER_HOST: ${{ vars.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
       SERVER_DEPLOY_PATH: ${{ vars.SERVER_DEPLOY_PATH }}
-      SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
 
     steps:
       - name: Download Release Artifact
@@ -35,6 +34,7 @@ jobs:
       - name: Prepare SSH and deployment archive
         shell: bash
         env:
+          SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
           SERVER_PRIVATE_KEY: ${{ secrets.SERVER_PRIVATE_KEY }}
           SERVER_KNOWN_HOSTS: ${{ secrets.SERVER_KNOWN_HOSTS }}
         run: |
@@ -61,6 +61,8 @@ jobs:
       - name: Upload to EC2 staging directory
         id: staging
         shell: bash
+        env:
+          SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
         run: |
           set -euo pipefail
           staging_path=$(ssh -i "$SSH_DIR/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" "$SERVER_USER@$SERVER_HOST" 'mktemp -d /tmp/yujanggi-deploy.XXXXXXXXXX')
@@ -71,6 +73,7 @@ jobs:
       - name: Apply deployment and restart yujanggi
         shell: bash
         env:
+          SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
           STAGING_PATH: ${{ steps.staging.outputs.path }}
         run: |
           set -euo pipefail
@@ -96,6 +99,7 @@ jobs:
         if: ${{ always() }}
         shell: bash
         env:
+          SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
           STAGING_PATH: ${{ steps.staging.outputs.path }}
         run: |
           set -euo pipefail
