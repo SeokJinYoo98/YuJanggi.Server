@@ -1,4 +1,4 @@
-# YuJanggi.Server.V2
+# YuJanggi.Server
 
 .NET 10 기반 1:1 장기 매칭 서버입니다. TCP 연결부터 매칭, 포진 확정, 양측의 게임 화면 준비와 시작 알림까지 처리합니다.
 
@@ -64,7 +64,7 @@ GameSceneReadyRequest (양쪽) → GameStartEvent
 
 1. .NET 10 SDK와 형제 폴더의 `YuJanggi.Engine`, `YuJanggi.Protocol` NuGet 패키지를 준비합니다.
 2. [`NuGet.Config`](NuGet.Config)의 로컬 패키지 경로를 확인합니다.
-3. 서버 저장소에서 `dotnet run --project src/YuJanggi.Server.V2.csproj`을 실행합니다.
+3. 서버 저장소에서 `dotnet run --project src/YuJanggi.Server.csproj`을 실행합니다.
 4. Unity 클라이언트를 서버의 TCP 포트 `7777`에 연결합니다.
 
 ## 관련 프로젝트

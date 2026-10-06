@@ -1,11 +1,12 @@
 # EC2 Ubuntu에서 systemd로 실행
 
-이 문서는 기존에 직접 실행하던 YuJanggi.Server.V2를 `yujanggi` 서비스로 등록하는 절차다. 실제 EC2 접속·등록은 수행하지 않았으며, 저장소의 설정은 예시다.
+이 문서는 YuJanggi.Server를 `yujanggi` 서비스로 등록하는 절차다. 실제 EC2 접속·등록은 수행하지 않았으며, 저장소의 설정은 예시다.
 
 ## 확인한 실행 산출물
 
-- 프로젝트: `src/YuJanggi.Server.V2.csproj`, 대상 프레임워크 `net10.0`.
+- 프로젝트: `src/YuJanggi.Server.csproj`, 대상 프레임워크 `net10.0`. 새 publish의 실행 DLL 이름은 프로젝트명에 따른 `YuJanggi.Server.dll`이다.
 - 기존 `publish/`에서 `YuJanggi.Server.V2.dll`, `.deps.json`, `.runtimeconfig.json`, Engine·Protocol DLL을 확인했다.
+- 위 파일은 이름 변경 전 산출물이다. 새 서비스 파일을 사용하려면 새 프로젝트를 publish한 산출물로 배포해야 한다. DLL 이름만 수동 변경하지 않는다.
 - runtimeconfig는 `Microsoft.NETCore.App` `10.0.0`을 요구한다. 호환되는 .NET 10 런타임이 필요하다.
 - 기존 publish 산출물의 존재만 확인했으며, 현재 dev 소스를 새로 publish하거나 산출물의 최신 여부를 검증하지 않았다.
 
@@ -19,7 +20,7 @@ DLL 하나만 옮기지 말고 배포할 publish 산출물 전체를 배포 폴�
 |---|---|---|
 | User | `ubuntu` | 실제 실행 계정 및 배포 파일 접근 권한 |
 | WorkingDirectory | `/home/ubuntu/yujanggi` | publish 파일들을 배치한 실제 폴더 |
-| ExecStart | `/usr/bin/dotnet /home/ubuntu/yujanggi/YuJanggi.Server.V2.dll` | dotnet 실행 파일과 서버 DLL의 절대 경로 |
+| ExecStart | `/usr/bin/dotnet /home/ubuntu/yujanggi/YuJanggi.Server.dll` | dotnet 실행 파일과 서버 DLL의 절대 경로 |
 
 EC2에서 `command -v dotnet`과 `dotnet --list-runtimes`로 실행 파일 위치와 런타임을 확인한다. WorkingDirectory와 ExecStart의 DLL 경로는 같은 배포 폴더를 가리키도록 수정한다. 이 경로는 로컬 저장소의 `publish/` 경로와는 별개다.
 
