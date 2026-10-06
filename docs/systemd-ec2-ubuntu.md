@@ -5,8 +5,7 @@
 ## 확인한 실행 산출물
 
 - 프로젝트: `src/YuJanggi.Server.csproj`, 대상 프레임워크 `net10.0`. 새 publish의 실행 DLL 이름은 프로젝트명에 따른 `YuJanggi.Server.dll`이다.
-- 기존 `publish/`에서 `YuJanggi.Server.V2.dll`, `.deps.json`, `.runtimeconfig.json`, Engine·Protocol DLL을 확인했다.
-- 위 파일은 이름 변경 전 산출물이다. 새 서비스 파일을 사용하려면 새 프로젝트를 publish한 산출물로 배포해야 한다. DLL 이름만 수동 변경하지 않는다.
+- 배포에는 현재 프로젝트를 publish한 `YuJanggi.Server.dll`, `.deps.json`, `.runtimeconfig.json`, Engine·Protocol DLL 등 산출물 전체를 사용한다. 이전 산출물의 DLL 이름만 수동 변경하지 않는다.
 - runtimeconfig는 `Microsoft.NETCore.App` `10.0.0`을 요구한다. 호환되는 .NET 10 런타임이 필요하다.
 - 기존 publish 산출물의 존재만 확인했으며, 현재 dev 소스를 새로 publish하거나 산출물의 최신 여부를 검증하지 않았다.
 
