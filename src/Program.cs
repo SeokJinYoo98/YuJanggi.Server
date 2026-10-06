@@ -9,7 +9,6 @@
         {
             try
             {
-
                 View.NetworkView.ShowCommands();
                 Task serverTask = _server.RunAsync();
                 await ReadCommandsAsync(serverTask);
