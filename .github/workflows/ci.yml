@@ -30,7 +30,7 @@ jobs:
 
       # Dependencies 
       - name: Restore
-        run: dotnet restore YuJanggi.Server.slnx --configfile Nuget.Config
+        run: dotnet restore YuJanggi.Server.slnx --configfile NuGet.Config
 
       # Build
       - name: Build
