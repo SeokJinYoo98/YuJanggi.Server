@@ -8,6 +8,7 @@ namespace YuJanggi.Server
     using Transport;
     using View;
     using ClientSession;
+    using Core.Sessions;
     using Lobby;
     using GameRoom;
 

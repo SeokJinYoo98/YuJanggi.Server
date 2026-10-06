@@ -6,7 +6,8 @@ namespace YuJanggi.Server.Lobby
     using Protocol.Messages;
 
     using ClientSession;
-    using Handlers;
+    using Core.Sessions;
+    using Core.Messaging;
 
     /// <summary>매칭 요청을 해석하고 응답 및 매칭 이벤트를 전송합니다.</summary>
     internal sealed class LobbyHandler : IMessageHandler
@@ -26,9 +27,8 @@ namespace YuJanggi.Server.Lobby
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if ((message.Type is ClientMessageType.MatchingStartRequest or ClientMessageType.MatchingCancelRequest) &&
-                string.IsNullOrWhiteSpace(message.RequestId))
-                throw new InvalidOperationException("매칭 요청에 RequestId가 없습니다.");
+            if (message.Type is ClientMessageType.MatchingStartRequest or ClientMessageType.MatchingCancelRequest)
+                _ = RequestMessageValidation.RequireRequestId(message, "매칭");
             if (message.Type == ClientMessageType.FormationSubmit && message.RequestId is not null)
                 throw new InvalidOperationException("포진 제출에는 RequestId를 사용할 수 없습니다.");
 

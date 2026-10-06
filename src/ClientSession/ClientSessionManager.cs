@@ -1,7 +1,8 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 
 namespace YuJanggi.Server.ClientSession
 {
+    using Core.Sessions;
     internal sealed class ClientSessionManager
     {
         #region Fields

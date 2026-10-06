@@ -1,6 +1,7 @@
 namespace YuJanggi.Server.GameRoom
 {
     using ClientSession;
+    using Core.Sessions;
 
     /// <summary>게임룸 컬렉션의 생성, 조회, 제거를 관리합니다.</summary>
     internal sealed class GameRoomManager : IAsyncDisposable

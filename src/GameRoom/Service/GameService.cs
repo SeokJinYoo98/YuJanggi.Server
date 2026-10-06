@@ -4,6 +4,7 @@ namespace YuJanggi.Server.GameRoom
     using Protocol.Matching;
 
     using ClientSession;
+    using Core.Sessions;
     using State;
 
 

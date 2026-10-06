@@ -2,6 +2,7 @@ namespace YuJanggi.Server.Lobby
 {
     using Engine.Domain;
     using ClientSession;
+    using Core.Sessions;
 
     /// <summary>한 매치의 예약·확정·포진 상태를 소유합니다. LobbyManager.SyncRoot 안에서 사용합니다.</summary>
     internal sealed class MatchState

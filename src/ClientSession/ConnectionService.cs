@@ -1,5 +1,6 @@
 namespace YuJanggi.Server.ClientSession
 {
+    using Core.Sessions;
     using Protocol.Connection;
     using View;
 

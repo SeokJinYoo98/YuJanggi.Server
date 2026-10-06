@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace YuJanggi.Server.Lobby
 {
     using ClientSession;
+    using Core.Sessions;
 
     /// <summary>매칭 대기열과 참가자별 매치 인덱스를 관리합니다.</summary>
     internal sealed class LobbyManager

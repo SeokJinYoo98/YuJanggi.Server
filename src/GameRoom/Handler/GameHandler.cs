@@ -5,8 +5,9 @@ namespace YuJanggi.Server.GameRoom
     using Protocol.InGame;
     using Protocol.Messages;
 
-    using Handlers;
+    using Core.Messaging;
     using ClientSession;
+    using Core.Sessions;
 
     /// <summary>인게임 Protocol 요청을 검증하고 서비스 결과를 메시지로 생성·전송합니다.</summary>
     internal sealed class GameHandler : IMessageHandler
@@ -64,7 +65,7 @@ namespace YuJanggi.Server.GameRoom
             ClientMessage message,
             CancellationToken cancellationToken)
         {
-            var requestId = RequireRequestId(message, "게임 종료");
+            var requestId = RequestMessageValidation.RequireRequestId(message, "게임 종료");
 
             var request = message.GetPayload<GameEndRequest>();
             var result = _gameService.ProcessGameEnd(session, request);
@@ -112,7 +113,7 @@ namespace YuJanggi.Server.GameRoom
             ClientMessage message,
             CancellationToken cancellationToken)
         {
-            var requestId = RequireRequestId(message, "이동");
+            var requestId = RequestMessageValidation.RequireRequestId(message, "이동");
 
             var request = message.GetPayload<MovePieceRequest>();
             var result = _gameService.ProcessMove(session, request);
@@ -164,15 +165,6 @@ namespace YuJanggi.Server.GameRoom
                     });
 
             await BroadcastAsync(result.Targets, started, cancellationToken);
-        }
-        private static string RequireRequestId(
-            ClientMessage message, 
-            string requestName)
-        {
-            if (string.IsNullOrWhiteSpace(message.RequestId))
-                throw new InvalidOperationException($"{requestName} 요청에 RequestId가 없습니다.");
-
-            return message.RequestId;
         }
         private static Task BroadcastAsync(
             IReadOnlyList<IClientSession> targets,

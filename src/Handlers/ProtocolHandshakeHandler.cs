@@ -4,6 +4,8 @@ namespace YuJanggi.Server.Handlers
     using Protocol.Messages;
 
     using ClientSession;
+    using Core.Sessions;
+    using Core.Messaging;
 
     /// <summary>
     /// 클라이언트의 핸드셰이크 요청을 처리합니다.

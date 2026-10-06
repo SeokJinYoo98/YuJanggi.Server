@@ -5,6 +5,7 @@ namespace YuJanggi.Server.Lobby
     using Engine.Domain;
 
     using ClientSession;
+    using Core.Sessions;
     using GameRoom;
     internal sealed record MatchPair(IClientSession First, IClientSession Second);
     internal sealed record ConfirmedMatch(string MatchId, MatchPair Players);

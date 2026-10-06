@@ -9,6 +9,7 @@ using YuJanggi.Protocol.Connection;
 using YuJanggi.Protocol.Serialization;
 using YuJanggi.Server;
 using YuJanggi.Server.ClientSession;
+using YuJanggi.Server.Core.Sessions;
 using YuJanggi.Server.Handlers;
 using YuJanggi.Server.GameRoom;
 using YuJanggi.Server.Lobby;

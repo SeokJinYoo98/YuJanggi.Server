@@ -1,11 +1,8 @@
-
-
-
-
-namespace YuJanggi.Server.Handlers
+namespace YuJanggi.Server.Core.Messaging
 {
     using Protocol.Messages;
-    using ClientSession;
+    using Core.Sessions;
+
     internal interface IMessageHandler
     {
         Task HandleAsync(
