@@ -43,22 +43,22 @@ await Run("Handshake 전 거절 및 성공 후 신청", async () =>
     var handler = new MatchingHandler(new MatchMakingService(rooms));
     await handler.HandleAsync(peer.Session, Request("before"), token);
     var response = await peer.Read(token);
-    Check(response.RequestId == "before" && response.GetPayload<MatchingResponse>().Result == MatchingResult.HandshakeRequired);
+    Check(response.RequestId == "before" && response.GetPayload<MatchingStartResponse>().Result == MatchingResult.HandshakeRequired);
     await new ProtocolHandshakeHandler().HandleAsync(peer.Session, new ClientMessage
     {
-        Type = ClientMessageType.ProtocolHandshake, RequestId = "handshake",
+        Type = ClientMessageType.HandshakeRequest, RequestId = "handshake",
         Payload = JsonSerializer.SerializeToElement(new ProtocolHandshakeRequest
         {
-            YuJanggiProtocolVersion = YuJanggi.Protocol.ProtocolVersion.Current,
-            YuJanggiCoreVersion = YuJanggi.Engine.CoreVersion.Current
+            YuJanggiProtocolVersion = YuJanggi.Protocol.Version.Version.Current,
+            YuJanggiCoreVersion = YuJanggi.Engine.Version.Version.Current
         })
     }, token);
-    Check((await peer.Read(token)).Type == ServerMessageType.ProtocolHandshake);
+    Check((await peer.Read(token)).Type == ServerMessageType.HandshakeResponse);
     Check(peer.Session.IsHandshakeCompleted);
     await handler.HandleAsync(peer.Session, Request("after"), token);
-    Check((await peer.Read(token)).GetPayload<MatchingResponse>().Result == MatchingResult.Accepted);
+    Check((await peer.Read(token)).GetPayload<MatchingStartResponse>().Result == MatchingResult.Accepted);
 });
-await Run("동시 신청에서 양쪽 응답 후 같은 매치의 진영별 MatchingFound 전달", async () =>
+await Run("동시 신청에서 양쪽 응답 후 같은 매치의 진영별 MatchingFoundEvent 전달", async () =>
 {
     using var first = await Peer.Create();
     using var second = await Peer.Create();
@@ -68,21 +68,21 @@ await Run("동시 신청에서 양쪽 응답 후 같은 매치의 진영별 Matc
     await sendLock.WaitAsync(token);
     var firstTask = handler.HandleAsync(first.Session, Request("first"), token);
     var secondTask = handler.HandleAsync(second.Session, Request("second"), token);
-    Check((await second.Read(token)).Type == ServerMessageType.MatchingResponse);
+    Check((await second.Read(token)).Type == ServerMessageType.MatchingStartResponse);
     Check(!secondTask.IsCompleted && !firstTask.IsCompleted);
     sendLock.Release();
     await Task.WhenAll(firstTask, secondTask);
     var response = await first.Read(token);
-    Check(response.Type == ServerMessageType.MatchingResponse && response.RequestId == "first");
+    Check(response.Type == ServerMessageType.MatchingStartResponse && response.RequestId == "first");
     var found1 = await first.Read(token);
     var found2 = await second.Read(token);
-    Check(found1.Type == ServerMessageType.MatchingFound && found2.Type == ServerMessageType.MatchingFound);
+    Check(found1.Type == ServerMessageType.MatchingFoundEvent && found2.Type == ServerMessageType.MatchingFoundEvent);
     Check(found1.RequestId is null && found2.RequestId is null);
-    Check(found1.GetPayload<MatchingFound>().MatchId == found2.GetPayload<MatchingFound>().MatchId);
-    Check(found1.GetPayload<MatchingFound>().MyTeam == ProtocolPlayerTeam.Cho);
-    Check(found2.GetPayload<MatchingFound>().MyTeam == ProtocolPlayerTeam.Han);
-    Check(found1.GetPayload<MatchingFound>().Opponent.PlayerId == second.Session.ClientId.ToString());
-    Check(found2.GetPayload<MatchingFound>().Opponent.PlayerId == first.Session.ClientId.ToString());
+    Check(found1.GetPayload<MatchingFoundEvent>().MatchId == found2.GetPayload<MatchingFoundEvent>().MatchId);
+    Check(found1.GetPayload<MatchingFoundEvent>().MyTeam == ProtocolPlayerTeam.Cho);
+    Check(found2.GetPayload<MatchingFoundEvent>().MyTeam == ProtocolPlayerTeam.Han);
+    Check(found1.GetPayload<MatchingFoundEvent>().Opponent.PlayerId == second.Session.ClientId.ToString());
+    Check(found2.GetPayload<MatchingFoundEvent>().Opponent.PlayerId == first.Session.ClientId.ToString());
 });
 await Run("포진 제출은 응답 없이 처리하고 양측 완료 시 GameReady 전송", async () =>
 {
@@ -96,8 +96,8 @@ await Run("포진 제출은 응답 없이 처리하고 양측 완료 시 GameRea
     Check((await second.Read(token)).RequestId == "second");
     var foundFirst = await first.Read(token);
     var foundSecond = await second.Read(token);
-    string matchId = foundFirst.GetPayload<MatchingFound>().MatchId;
-    Check(matchId == foundSecond.GetPayload<MatchingFound>().MatchId);
+    string matchId = foundFirst.GetPayload<MatchingFoundEvent>().MatchId;
+    Check(matchId == foundSecond.GetPayload<MatchingFoundEvent>().MatchId);
 
     await handler.HandleAsync(first.Session, Formation("other-match", ProtocolFormation.HEHE), token);
     await handler.HandleAsync(first.Session, Formation(matchId, ProtocolFormation.HEHE), token);
@@ -106,7 +106,7 @@ await Run("포진 제출은 응답 없이 처리하고 양측 완료 시 GameRea
 
     var readyFirst = await first.Read(token);
     var readySecond = await second.Read(token);
-    Check(readyFirst.Type == ServerMessageType.GameReady && readySecond.Type == ServerMessageType.GameReady);
+    Check(readyFirst.Type == ServerMessageType.GameReadyEvent && readySecond.Type == ServerMessageType.GameReadyEvent);
     Check(readyFirst.RequestId is null && readySecond.RequestId is null);
     Check(readyFirst.GetPayload<GameReadyEvent>().MatchId == matchId);
     Check(readyFirst.GetPayload<GameReadyEvent>().ChoFormation == ProtocolFormation.HEHE);
@@ -174,7 +174,7 @@ await Run("응답 대기 중 취소 시 이미 생성된 쌍의 이벤트 억제
     await first.SendLock.WaitAsync(token);
     var firstTask = handler.HandleAsync(first.Session, Request("first"), cancelled.Token);
     var secondTask = handler.HandleAsync(second.Session, Request("second"), token);
-    Check((await second.Read(token)).Type == ServerMessageType.MatchingResponse);
+    Check((await second.Read(token)).Type == ServerMessageType.MatchingStartResponse);
     cancelled.Cancel();
     await ExpectFailure(() => firstTask);
     await secondTask;
@@ -191,11 +191,11 @@ await Run("쌍 생성 직후 연결 종료 및 두 번째 이벤트 실패", asy
     await first.Read(token);
     await first.SendLock.WaitAsync(token);
     var matching = handler.HandleAsync(second.Session, Request("second"), token);
-    Check((await second.Read(token)).Type == ServerMessageType.MatchingResponse);
+    Check((await second.Read(token)).Type == ServerMessageType.MatchingStartResponse);
     second.Session.Dispose();
     first.SendLock.Release();
     await ExpectFailure(() => matching);
-    Check((await first.Read(token)).Type == ServerMessageType.MatchingFound);
+    Check((await first.Read(token)).Type == ServerMessageType.MatchingFoundEvent);
     // 부분 전송 결과는 TODO로 명시한 현재 한계입니다. 복구 성공을 주장하지 않습니다.
 });
 await Run("다수 동시 신청의 원자성과 중복 방어", async () =>
@@ -223,11 +223,11 @@ static GameRoomManager CreateRoomManager(params IClientSession[] participants)
 
     return new GameRoomManager(sessions, new Lock());
 }
-static ClientMessage Request(string id) => new() { Type = ClientMessageType.MatchingRequest, RequestId = id };
+static ClientMessage Request(string id) => new() { Type = ClientMessageType.MatchingStartRequest, RequestId = id };
 static ClientMessage Formation(string matchId, ProtocolFormation formation) => new()
 {
     Type = ClientMessageType.FormationSubmit,
-    Payload = JsonSerializer.SerializeToElement(new FormationSubmitRequest
+    Payload = JsonSerializer.SerializeToElement(new FormationSubmit
     {
         MatchId = matchId,
         Formation = formation
