@@ -11,28 +11,25 @@ permissions:
   packages: read
 
 jobs:
-  build:
+  build-and-test:
+    name: build-and-test
     runs-on: ubuntu-latest
 
     env:
-      NuGetPackageSourceCredentials_github: Username=${{github.actor}};Password=${{secrets.GITHUB_TOKEN}}
+      NuGetPackageSourceCredentials_github: Username=${{ github.actor }};Password=${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      # Repository
       - name: Checkout
         uses: actions/checkout@v7
 
-      # .Net
       - name: Setup .Net
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      # Dependencies 
       - name: Restore
         run: dotnet restore YuJanggi.Server.slnx --configfile NuGet.Config
 
-      # Build
       - name: Build
         run: dotnet build YuJanggi.Server.slnx --configuration Release --no-restore
 
