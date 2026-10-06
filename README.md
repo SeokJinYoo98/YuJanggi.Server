@@ -9,6 +9,8 @@
 - 양측 포진 접수 후 `GameRoom` 생성
 - `YuJanggi.Protocol` 메시지와 `YuJanggi.Engine` 공용 타입·버전 사용
 
+
+
 ## 기술 스택
 
 - C# / .NET 10
