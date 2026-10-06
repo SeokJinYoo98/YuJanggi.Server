@@ -27,24 +27,25 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # Restore and build for the same runtime used by Publish --no-build.
+      # Validate the solution using the same commands as Server CI.
       - name: Restore
-        run: dotnet restore YuJanggi.Server.slnx --configfile NuGet.Config --runtime linux-x64 -p:SelfContained=false
+        run: dotnet restore YuJanggi.Server.slnx --configfile NuGet.Config
 
       - name: Build
-        run: dotnet build YuJanggi.Server.slnx --configuration Release --runtime linux-x64 --self-contained false --no-restore
+        run: dotnet build YuJanggi.Server.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test YuJanggi.Server.slnx --configuration Release --runtime linux-x64 --no-build
+        run: dotnet test YuJanggi.Server.slnx --configuration Release --no-build
 
       # Framework-dependent Linux deployment output (requires .NET 10 runtime).
+      # Publish restores and builds the server project for its specific runtime.
       - name: Publish
         run: >-
           dotnet publish src/YuJanggi.Server.csproj
           --configuration Release
           --runtime linux-x64
           --self-contained false
-          --no-build
+          -p:RestoreConfigFile=${{ github.workspace }}/NuGet.Config
           --output artifacts/publish/linux-x64
 
       - name: Upload Linux deployment artifact
