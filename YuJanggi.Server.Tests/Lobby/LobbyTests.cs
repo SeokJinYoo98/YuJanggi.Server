@@ -14,18 +14,18 @@ using YuJanggi.Server.Features.Lobby;
 using YuJanggi.Server.Transport.Tcp;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using static YuJanggi.Server.Tests.Connection.TestSupport;
-using Peer = YuJanggi.Server.Tests.Connection.Peer;
+using static YuJanggi.Server.Tests.TestSupport.TestSupport;
+using Peer = YuJanggi.Server.Tests.TestSupport.Peer;
 using ClientSession = YuJanggi.Server.Connection.ClientSession;
 
-namespace YuJanggi.Server.Tests.Matching
+namespace YuJanggi.Server.Tests.Lobby
 {
     [TestClass]
     [DoNotParallelize]
-    public sealed class MatchingTests
+    public sealed class LobbyTests
     {
         [TestMethod]
-        [TestCategory("Matching")]
+        [TestCategory("Lobby")]
         public async Task RequestCancelAndFifo()
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -61,7 +61,7 @@ namespace YuJanggi.Server.Tests.Matching
         }
 
         [TestMethod]
-        [TestCategory("Matching")]
+        [TestCategory("Lobby")]
         public async Task ResponsesPrecedeMatchingFound()
         {
             var token = timeout.Token;
@@ -95,7 +95,7 @@ namespace YuJanggi.Server.Tests.Matching
         }
 
         [TestMethod]
-        [TestCategory("Matching")]
+        [TestCategory("Lobby")]
         public async Task FormationSubmissionsProduceGameReady()
         {
             var token = timeout.Token;
@@ -129,7 +129,7 @@ namespace YuJanggi.Server.Tests.Matching
         }
 
         [TestMethod]
-        [TestCategory("Matching")]
+        [TestCategory("Lobby")]
         public async Task CancelledRequestDoesNotEnqueue()
         {
             var token = timeout.Token;
@@ -145,7 +145,7 @@ namespace YuJanggi.Server.Tests.Matching
         }
 
         [TestMethod]
-        [TestCategory("Matching")]
+        [TestCategory("Lobby")]
         public async Task SendFailureRemovesQueuedSession()
         {
             var token = timeout.Token;
@@ -160,7 +160,7 @@ namespace YuJanggi.Server.Tests.Matching
         }
 
         [TestMethod]
-        [TestCategory("Matching")]
+        [TestCategory("Lobby")]
         public async Task CancellationSuppressesPairEvents()
         {
             var token = timeout.Token;
@@ -179,7 +179,7 @@ namespace YuJanggi.Server.Tests.Matching
         }
 
         [TestMethod]
-        [TestCategory("Matching")]
+        [TestCategory("Lobby")]
         public async Task DisconnectDuringPairEventDelivery()
         {
             var token = timeout.Token;
@@ -199,7 +199,7 @@ namespace YuJanggi.Server.Tests.Matching
         }
 
         [TestMethod]
-        [TestCategory("Matching")]
+        [TestCategory("Lobby")]
         public async Task ConcurrentRequestsAreAtomic()
         {
             var token = timeout.Token;
@@ -211,8 +211,8 @@ namespace YuJanggi.Server.Tests.Matching
                 Assert.IsNull(pair);
                 return result;
             })));
-            Assert.AreEqual(results.Count(r => r == MatchRequestStatus.Accepted), 1);
-            Assert.AreEqual(results.Count(r => r == MatchRequestStatus.AlreadyMatching), 31);
+            Assert.AreEqual(1, results.Count(r => r == MatchRequestStatus.Accepted));
+            Assert.AreEqual(31, results.Count(r => r == MatchRequestStatus.AlreadyMatching));
 
         }
 

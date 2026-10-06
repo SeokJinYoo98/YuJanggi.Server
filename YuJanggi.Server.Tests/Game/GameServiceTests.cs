@@ -1,16 +1,16 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace YuJanggi.Server.Tests.InGame
+namespace YuJanggi.Server.Tests.Game
 {
     using YuJanggi.Protocol.InGame;
     using YuJanggi.Protocol.Matching;
     using YuJanggi.Server.Features.Game;
     using YuJanggi.Server.Features.Game.State;
-    using YuJanggi.Server.Tests.Connection;
-    using static YuJanggi.Server.Tests.Connection.TestSupport;
+    using YuJanggi.Server.Tests.TestSupport;
+    using static YuJanggi.Server.Tests.TestSupport.TestSupport;
 
     [TestClass]
-    [TestCategory("InGame")]
+    [TestCategory("Game")]
     [DoNotParallelize]
     public sealed class GameServiceTests
     {

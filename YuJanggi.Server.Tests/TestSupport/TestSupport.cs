@@ -17,7 +17,7 @@ using YuJanggi.Server.Transport.Tcp;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ClientSession = YuJanggi.Server.Connection.ClientSession;
 
-namespace YuJanggi.Server.Tests.Connection
+namespace YuJanggi.Server.Tests.TestSupport
 {
     internal static class TestSupport
     {

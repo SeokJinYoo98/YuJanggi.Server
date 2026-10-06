@@ -15,8 +15,8 @@ using YuJanggi.Server.Features.Lobby;
 using YuJanggi.Server.Transport.Tcp;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using static YuJanggi.Server.Tests.Connection.TestSupport;
-using Peer = YuJanggi.Server.Tests.Connection.Peer;
+using static YuJanggi.Server.Tests.TestSupport.TestSupport;
+using Peer = YuJanggi.Server.Tests.TestSupport.Peer;
 using ClientSession = YuJanggi.Server.Connection.ClientSession;
 
 namespace YuJanggi.Server.Tests.Connection
