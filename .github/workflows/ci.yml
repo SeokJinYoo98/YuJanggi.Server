@@ -1,0 +1,40 @@
+name: Server CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      NuGetPackageSourceCredentials_github: Username=${{github.actor}};Password=${{secrets.GITHUB_TOKEN}}
+
+    steps:
+      # Repository
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # .Net
+      - name: Setup .Net
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      # Dependencies 
+      - name: Restore
+        run: dotnet restore YuJanggi.Server.V2.slnx --configfile Nuget.Config
+
+      # Build
+      - name: Build
+        run: dotnet build YuJanggi.Server.V2.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test YuJanggi.Server.V2.slnx --configuration Release --no-build
