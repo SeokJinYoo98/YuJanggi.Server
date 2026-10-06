@@ -3,8 +3,6 @@ namespace YuJanggi.Server.Handlers
     using Protocol.Connection;
     using Protocol.Messages;
 
-    using Transport;
-    using View;
     using ClientSession;
 
     /// <summary>
@@ -12,6 +10,13 @@ namespace YuJanggi.Server.Handlers
     /// </summary>
     internal sealed class ProtocolHandshakeHandler : IMessageHandler
     {
+        private readonly ConnectionService _connectionService;
+
+        public ProtocolHandshakeHandler(ConnectionService connectionService)
+        {
+            _connectionService = connectionService;
+        }
+
         public async Task HandleAsync(
             IClientSession session,
             ClientMessage message,
@@ -31,7 +36,7 @@ namespace YuJanggi.Server.Handlers
                 message.GetPayload<ProtocolHandshakeRequest>();
 
             ProtocolHandshakeResult result =
-                ValidateVersion(request);
+                _connectionService.ValidateHandshake(request);
 
             var response = new ProtocolHandshakeResponse
             {
@@ -48,30 +53,7 @@ namespace YuJanggi.Server.Handlers
                 responseMessage,
                 cancellationToken);
 
-            if (result == ProtocolHandshakeResult.Success)
-                session.CompleteHandshake();
-        }
-
-        private static ProtocolHandshakeResult ValidateVersion(
-            ProtocolHandshakeRequest request)
-        {
-            ProtocolHandshakeResult result =
-                ProtocolHandshakeResult.Success;
-
-            if (request.YuJanggiProtocolVersion !=
-                Protocol.Version.Version.Current)
-            {
-                result |=
-                    ProtocolHandshakeResult.ProtocolVersionMismatch;
-            }
-
-            if (request.YuJanggiCoreVersion != Engine.Version.Version.Current)
-            {
-                result |=
-                    ProtocolHandshakeResult.CoreVersionMismatch;
-            }
-
-            return result;
+            _connectionService.CompleteHandshake(session, result);
         }
     }
 }

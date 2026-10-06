@@ -26,6 +26,7 @@ namespace YuJanggi.Server
         #region Fields
         private readonly TcpConnectionListener  _listener;
         private readonly ClientSessionManager   _sessionManager;
+        private readonly ConnectionService _connectionService;
         private readonly GameRoomManager _gameRoomManager;
         private readonly MatchMakingService _matchMakingService;
         private readonly GameService _gameService;
@@ -49,9 +50,10 @@ namespace YuJanggi.Server
                 new ClientSessionManager();
 
             _gameRoomManager = new GameRoomManager(_sessionManager, _roomSync);
+            _connectionService = new ConnectionService(_sessionManager, _roomSync);
             _matchMakingService = new MatchMakingService(_gameRoomManager);
             _gameService = new GameService(_gameRoomManager);
-            _handshakeHandler = new ProtocolHandshakeHandler();
+            _handshakeHandler = new ProtocolHandshakeHandler(_connectionService);
             _matchingHandler = new MatchingHandler(_matchMakingService);
             _gameHandler = new GameHandler(_gameService);
         }
@@ -106,16 +108,8 @@ namespace YuJanggi.Server
                         ClientSessionFactory.CreateClientSession(
                             connection);
 
-                    if (!_sessionManager.Add(session))
-                    {
-                        session.Dispose();
+                    if (!_connectionService.RegisterSession(session))
                         continue;
-                    }
-
-                    NetworkView.Write(
-                        NetworkMessageType.Message,
-                        $"Client connected: {connection.ConnectionInfo}",
-                        session.Nickname);
 
                     Task processingTask =
                         HandleClientAsync(
@@ -132,8 +126,7 @@ namespace YuJanggi.Server
                 shutdown.Cancel();
                 _listener.Stop();
 
-                Task[] processingTasks = _sessionManager.GetProcessingTasks();
-                _sessionManager.Clear();
+                Task[] processingTasks = _connectionService.ClearSessions();
                 try
                 {
                     await Task.WhenAll(processingTasks);
@@ -216,12 +209,7 @@ namespace YuJanggi.Server
         {
             // 서버 종료 시 세션 목록이 먼저 비워졌더라도 대기열은 반드시 정리합니다.
 
-            bool removed;
-            lock (_roomSync)
-            {
-                // 매니저의 룸 생성과 세션 제거를 같은 잠금으로 보호합니다.
-                removed = _sessionManager.Remove(session.ClientId, out _);
-            }
+            bool removed = _connectionService.UnregisterSession(session);
 
             // 서버 잠금을 해제한 뒤 매칭 상태와 게임룸을 각각 정리합니다.
             await _matchMakingService.DisconnectPlayerAsync(session);
@@ -233,7 +221,7 @@ namespace YuJanggi.Server
                 return;
             }
 
-            session.Dispose();
+            _connectionService.CloseConnection(session);
 
             await roomCleanup;
 

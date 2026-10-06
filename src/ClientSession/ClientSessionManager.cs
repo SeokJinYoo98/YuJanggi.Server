@@ -61,19 +61,11 @@ namespace YuJanggi.Server.ClientSession
 
         public void Clear()
         {
-            foreach (IClientSession session in _sessions.Values)
-            {
-                session.Dispose();
-            }
-
             _sessions.Clear();
         }
-        public Task[] GetProcessingTasks()
+        public IClientSession[] GetSessionsSnapshot()
         {
-            return _sessions.Values
-                .Where(session => session.ProcessingTask is not null)
-                .Select(session => session.ProcessingTask!)
-                .ToArray();
+            return _sessions.Values.ToArray();
         }
         #endregion
     }

@@ -38,7 +38,8 @@ namespace YuJanggi.Server.Tests.Connection
             var response = await peer.Read(token);
             Assert.AreEqual("before", response.RequestId);
             Assert.AreEqual(MatchingResult.HandshakeRequired, response.GetPayload<MatchingStartResponse>().Result);
-            await new ProtocolHandshakeHandler().HandleAsync(peer.Session, new ClientMessage
+            await new ProtocolHandshakeHandler(new ConnectionService(new ClientSessionManager(), new Lock()))
+                .HandleAsync(peer.Session, new ClientMessage
             {
                 Type = ClientMessageType.HandshakeRequest, RequestId = "handshake",
                 Payload = JsonSerializer.SerializeToElement(new ProtocolHandshakeRequest
