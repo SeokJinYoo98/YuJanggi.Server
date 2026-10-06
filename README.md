@@ -1,4 +1,20 @@
-YuJanggi.Server
+<h3 align="center">Tech Stack</h3>
+
+<p align="center">
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/csharp/csharp-original.svg" height="40" alt="C#" title="C#" />
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/dotnetcore/dotnetcore-original.svg" height="40" alt=".NET" title=".NET" />
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/githubactions/githubactions-original.svg" height="40" alt="GitHub Actions" title="GitHub Actions" />
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/amazonwebservices/amazonwebservices-original-wordmark.svg" height="40" alt="AWS EC2" title="AWS EC2" />
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/ubuntu/ubuntu-original.svg" height="40" alt="Ubuntu" title="Ubuntu" />
+</p>
+
+<p align="center">
+  .NET 10 · TCP / NetworkStream · MSTest<br />
+  AWS OIDC · SSH / SCP · systemd
+</p>
+
+
+# YuJanggi.Server
 
 .NET 10 기반 1:1 장기 네트워크 서버입니다. TCP 연결·매칭·게임 메시지 처리를 담당하며, <br>
 GitHub Actions에서 검증한 Linux 실행 결과물을 AWS EC2에 배포합니다.
