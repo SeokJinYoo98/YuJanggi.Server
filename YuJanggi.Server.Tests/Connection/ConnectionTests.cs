@@ -1,26 +1,18 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Reflection;
 using System.Text.Json;
-using YuJanggi.Protocol.Framing;
-using YuJanggi.Protocol.Messages;
-using YuJanggi.Protocol.Matching;
-using YuJanggi.Protocol.Connection;
-using YuJanggi.Protocol.Serialization;
-using YuJanggi.Server;
-using YuJanggi.Server.ClientSession;
-using YuJanggi.Server.Handlers;
-using YuJanggi.Server.GameRoom;
-using YuJanggi.Server.Matching;
-using YuJanggi.Server.Transport;
-
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using static YuJanggi.Server.Tests.Connection.TestSupport;
-using Peer = YuJanggi.Server.Tests.Connection.Peer;
-using ClientSession = YuJanggi.Server.ClientSession.ClientSession;
 
 namespace YuJanggi.Server.Tests.Connection
 {
+    using Protocol.Connection;
+    using Protocol.Matching;
+    using Protocol.Messages;
+    using Server.Connection;
+    using Features.Login;
+    using Features.Lobby;
+    using Tests.TestSupport;
+    using static Tests.TestSupport.TestSupport;
+
     [TestClass]
     [DoNotParallelize]
     public sealed class ConnectionTests
@@ -33,12 +25,13 @@ namespace YuJanggi.Server.Tests.Connection
             var token = timeout.Token;
             using var peer = await Peer.Create(false);
             await using var rooms = CreateRoomManager(peer.Session);
-            var handler = new MatchingHandler(new MatchMakingService(rooms));
+            var handler = new LobbyHandler(new LobbyService(new LobbyManager(), rooms));
             await handler.HandleAsync(peer.Session, Request("before"), token);
             var response = await peer.Read(token);
             Assert.AreEqual("before", response.RequestId);
             Assert.AreEqual(MatchingResult.HandshakeRequired, response.GetPayload<MatchingStartResponse>().Result);
-            await new ProtocolHandshakeHandler().HandleAsync(peer.Session, new ClientMessage
+            await new ProtocolHandshakeHandler(new LoginService(new LoginManager()))
+                .HandleAsync(peer.Session, new ClientMessage
             {
                 Type = ClientMessageType.HandshakeRequest, RequestId = "handshake",
                 Payload = JsonSerializer.SerializeToElement(new ProtocolHandshakeRequest
@@ -63,8 +56,8 @@ namespace YuJanggi.Server.Tests.Connection
             using var first = await Peer.Create();
             using var second = await Peer.Create();
             var server = new YuJanggiServer();
-            var service = (MatchMakingService)Field(server, "_matchMakingService");
-            var handler = new MatchingHandler(service);
+            var service = (LobbyService)Field(server, "_lobbyService");
+            var handler = new LobbyHandler(service);
             await handler.HandleAsync(first.Session, new ClientMessage
             { Type = ClientMessageType.MatchingCancelRequest, RequestId = "cancel" }, token);
             var response = await first.Read(token);

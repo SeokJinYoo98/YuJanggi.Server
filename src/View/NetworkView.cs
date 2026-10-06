@@ -5,7 +5,7 @@ namespace YuJanggi.Server.View
 {
     using Protocol.Messages;
 
-    using GameRoom;
+    using Features.Game;
 
     internal enum NetworkMessageType
     {
