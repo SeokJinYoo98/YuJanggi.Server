@@ -19,10 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SERVER_HOST: ${{ vars.SERVER_HOST }}
-      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SERVER_USER: ${{ vars.SERVER_USER }}
       SERVER_DEPLOY_PATH: ${{ vars.SERVER_DEPLOY_PATH }}
 
     steps:
+      - name: Checkout deployment scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Download Release Artifact
         uses: actions/download-artifact@v8
         with:
@@ -31,79 +36,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      - name: Prepare SSH and deployment archive
+      - name: Deploy to EC2
         shell: bash
         env:
           SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
           SERVER_PRIVATE_KEY: ${{ secrets.SERVER_PRIVATE_KEY }}
           SERVER_KNOWN_HOSTS: ${{ secrets.SERVER_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          : "${SERVER_HOST:?Set vars.SERVER_HOST}"
-          : "${SERVER_USER:?Set secrets.SERVER_USER}"
-          : "${SERVER_DEPLOY_PATH:?Set vars.SERVER_DEPLOY_PATH}"
-          : "${SERVER_PRIVATE_KEY:?Set secrets.SERVER_PRIVATE_KEY}"
-          : "${SERVER_KNOWN_HOSTS:?Set secrets.SERVER_KNOWN_HOSTS with independently verified host keys}"
-          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]
-          [[ "$SERVER_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
-          [[ "$SERVER_DEPLOY_PATH" =~ ^/[A-Za-z0-9_./-]+$ ]]
-          [[ "$SERVER_DEPLOY_PATH" != / && "/${SERVER_DEPLOY_PATH#/}/" != *'/../'* ]]
-          test -f artifacts/publish/linux-x64/YuJanggi.Server.dll
-          test -f artifacts/publish/linux-x64/YuJanggi.Server.deps.json
-          test -f artifacts/publish/linux-x64/YuJanggi.Server.runtimeconfig.json
-          umask 077
-          mkdir -p "$SSH_DIR"
-          printf '%s\n' "$SERVER_PRIVATE_KEY" | tr -d '\r' > "$SSH_DIR/key"
-          printf '%s\n' "$SERVER_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
-          chmod 600 "$SSH_DIR/key" "$SSH_DIR/known_hosts"
-          tar -czf "$RUNNER_TEMP/yujanggi-publish.tar.gz" -C artifacts/publish/linux-x64 .
-
-      - name: Upload to EC2 staging directory
-        id: staging
-        shell: bash
-        env:
-          SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
-        run: |
-          set -euo pipefail
-          staging_path=$(ssh -i "$SSH_DIR/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" "$SERVER_USER@$SERVER_HOST" 'mktemp -d /tmp/yujanggi-deploy.XXXXXXXXXX')
-          [[ "$staging_path" =~ ^/tmp/yujanggi-deploy\.[A-Za-z0-9]+$ ]]
-          echo "path=$staging_path" >> "$GITHUB_OUTPUT"
-          scp -i "$SSH_DIR/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" "$RUNNER_TEMP/yujanggi-publish.tar.gz" "$SERVER_USER@$SERVER_HOST:$staging_path/publish.tar.gz"
-
-      - name: Apply deployment and restart yujanggi
-        shell: bash
-        env:
-          SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
-          STAGING_PATH: ${{ steps.staging.outputs.path }}
-        run: |
-          set -euo pipefail
-          ssh -i "$SSH_DIR/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" "$SERVER_USER@$SERVER_HOST" "bash -s -- '$STAGING_PATH' '$SERVER_DEPLOY_PATH'" <<'REMOTE'
-          set -euo pipefail
-          staging_path=$1
-          deploy_path=$2
-          [[ "$staging_path" =~ ^/tmp/yujanggi-deploy\.[A-Za-z0-9]+$ ]]
-          test -d "$deploy_path"
-          deploy_path=$(realpath -e -- "$deploy_path")
-          case "$deploy_path" in /|/home|/opt|/usr|/var|/tmp|/etc) echo 'Refusing deployment to a system directory.' >&2; exit 1 ;; esac
-          mkdir "$staging_path/publish"
-          tar -xzf "$staging_path/publish.tar.gz" -C "$staging_path/publish"
-          test -f "$staging_path/publish/YuJanggi.Server.dll"
-          sudo -n systemctl stop yujanggi
-          # Preserve unrelated configuration/log files; do not delete the destination.
-          sudo -n cp -R --preserve=mode,timestamps -- "$staging_path/publish/." "$deploy_path/"
-          sudo -n systemctl restart yujanggi
-          sudo -n systemctl is-active --quiet yujanggi
-          REMOTE
-
-      - name: Clean temporary deployment files
-        if: ${{ always() }}
-        shell: bash
-        env:
-          SSH_DIR: ${{ runner.temp }}/yujanggi-ssh
-          STAGING_PATH: ${{ steps.staging.outputs.path }}
-        run: |
-          set -euo pipefail
-          trap 'rm -f -- "$SSH_DIR/key" "$SSH_DIR/known_hosts" "$RUNNER_TEMP/yujanggi-publish.tar.gz"' EXIT
-          if [[ "$STAGING_PATH" =~ ^/tmp/yujanggi-deploy\.[A-Za-z0-9]+$ ]] && [[ -f "$SSH_DIR/key" && -f "$SSH_DIR/known_hosts" ]]; then
-            ssh -i "$SSH_DIR/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" "$SERVER_USER@$SERVER_HOST" "rm -rf -- '$STAGING_PATH'"
-          fi
+        run: bash scripts/DeployServer.sh
