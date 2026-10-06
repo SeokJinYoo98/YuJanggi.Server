@@ -12,7 +12,7 @@
     <Compile Remove="Tests\**\*.cs" />
     <EmbeddedResource Remove="InGame\**" />
     <None Remove="InGame\**" />
-    <InternalsVisibleTo Include="YuJanggi.Server.V2.Tests" />
+    <InternalsVisibleTo Include="YuJanggi.Server.Tests" />
   </ItemGroup>
 
   <ItemGroup>

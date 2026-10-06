@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="src/YuJanggi.Server.csproj" />
+  <Project Path="YuJanggi.Server.Tests/YuJanggi.Server.Tests.csproj" />
 </Solution>
