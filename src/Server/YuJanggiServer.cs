@@ -10,7 +10,6 @@ namespace YuJanggi.Server
     using View;
     using Connection;
 
-
     using Features.Login;
     using Features.Lobby;
     using Features.Game;
