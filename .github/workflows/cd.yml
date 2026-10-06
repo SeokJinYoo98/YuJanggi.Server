@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   actions: read
+  id-token: write
 
 concurrency:
   group: server-ec2-deploy
@@ -36,6 +37,34 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: ServerCD-${{ github.run_id }}
+
+      - name: Temporarily allow Runner SSH access
+        id: ssh_access
+        shell: bash
+        env:
+          SECURITY_GROUP_ID: ${{ vars.SERVER_SECURITY_GROUP_ID }}
+        run: |
+          set -euo pipefail
+          : "${SECURITY_GROUP_ID:?Set vars.SERVER_SECURITY_GROUP_ID}"
+          [[ "$SECURITY_GROUP_ID" =~ ^sg-[0-9a-f]+$ ]]
+          runner_ip=$(curl --fail --silent --show-error --ipv4 --connect-timeout 10 --max-time 30 https://checkip.amazonaws.com)
+          runner_ip=$(python3 -c 'import ipaddress, sys; ip = ipaddress.IPv4Address(sys.argv[1].strip()); assert ip.is_global, "Expected a public IPv4 address"; print(ip)' "$runner_ip")
+          runner_cidr="$runner_ip/32"
+          rule_id=$(aws ec2 authorize-security-group-ingress \
+            --group-id "$SECURITY_GROUP_ID" \
+            --protocol tcp --port 22 --cidr "$runner_cidr" \
+            --query 'SecurityGroupRules[0].SecurityGroupRuleId' \
+            --output text --no-cli-pager)
+          [[ "$rule_id" =~ ^sgr-[0-9a-f]+$ ]]
+          printf 'rule_id=%s\n' "$rule_id" >> "$GITHUB_OUTPUT"
+          printf 'group_id=%s\n' "$SECURITY_GROUP_ID" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to EC2
         shell: bash
         env:
@@ -43,3 +72,18 @@ jobs:
           SERVER_PRIVATE_KEY: ${{ secrets.SERVER_PRIVATE_KEY }}
           SERVER_KNOWN_HOSTS: ${{ secrets.SERVER_KNOWN_HOSTS }}
         run: bash scripts/DeployServer.sh
+
+      - name: Revoke temporary Runner SSH access
+        if: ${{ always() && steps.ssh_access.outputs.rule_id != '' }}
+        shell: bash
+        env:
+          RULE_ID: ${{ steps.ssh_access.outputs.rule_id }}
+          SECURITY_GROUP_ID: ${{ steps.ssh_access.outputs.group_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RULE_ID" =~ ^sgr-[0-9a-f]+$ ]]
+          [[ "$SECURITY_GROUP_ID" =~ ^sg-[0-9a-f]+$ ]]
+          aws ec2 revoke-security-group-ingress \
+            --group-id "$SECURITY_GROUP_ID" \
+            --security-group-rule-ids "$RULE_ID" \
+            --no-cli-pager
