@@ -40,10 +40,11 @@ namespace YuJanggi.Server.Tests.Game
             foreach (var peer in new[] { cho, han })
             {
                 var message = await peer.Read(timeout.Token);
-                Assert.AreEqual(ServerMessageType.MovePieceEvent, message.Type);
+                Assert.AreEqual(ServerMessageType.TurnCompletedEvent, message.Type);
                 Assert.IsNull(message.RequestId);
-                var move = message.GetPayload<MovePieceEvent>();
+                var move = message.GetPayload<TurnCompletedEvent>();
                 Assert.AreEqual(request.Team, move.Team);
+                Assert.AreEqual(ProtocolTurnAction.Move, move.Action);
                 Assert.AreEqual(request.FromX, move.FromX);
                 Assert.AreEqual(request.FromZ, move.FromZ);
                 Assert.AreEqual(request.ToX, move.ToX);
@@ -70,7 +71,7 @@ namespace YuJanggi.Server.Tests.Game
             var first = await cho.Read(timeout.Token);
             Assert.AreEqual(ServerMessageType.GameEndResponse, first.Type);
             Assert.AreEqual("cho-end", first.RequestId);
-            Assert.AreEqual(GameEndResult.Accepted, first.GetPayload<GameEndResponse>().Result);
+            Assert.AreEqual(GameRequestResult.Accepted, first.GetPayload<GameRequestResponse>().Result);
             Assert.AreEqual(GameRoomState.Playing, room.State);
             Assert.IsFalse(cho.Client.GetStream().DataAvailable);
             Assert.IsFalse(han.Client.GetStream().DataAvailable);
@@ -80,7 +81,7 @@ namespace YuJanggi.Server.Tests.Game
             var second = await han.Read(timeout.Token);
             Assert.AreEqual(ServerMessageType.GameEndResponse, second.Type);
             Assert.AreEqual("han-end", second.RequestId);
-            Assert.AreEqual(GameEndResult.Accepted, second.GetPayload<GameEndResponse>().Result);
+            Assert.AreEqual(GameRequestResult.Accepted, second.GetPayload<GameRequestResponse>().Result);
             foreach (var peer in new[] { cho, han })
             {
                 var message = await peer.Read(timeout.Token);

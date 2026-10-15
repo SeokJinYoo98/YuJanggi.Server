@@ -85,6 +85,17 @@ namespace YuJanggi.Server.Features.Game
             lock (_sync)
                 _state = GameRoomState.Closed;
         }
+        internal bool TryEndByGiveUp()
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Playing)
+                    return false;
+
+                _state = GameRoomState.Ended;
+                return true;
+            }
+        }
         #endregion
 
         #region Private Methods

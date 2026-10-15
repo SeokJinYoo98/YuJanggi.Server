@@ -160,32 +160,23 @@ namespace YuJanggi.Server
                     ClientMessage message =
                         await session.ReceiveAsync(
                             cancellationToken);
+                    int typeNum = (int)message.Type;
 
-                    switch (message.Type)
-                    {
-                        case ClientMessageType.HandshakeRequest:
-                            await _handshakeHandler.HandleAsync(
+                    if (100 <= typeNum && typeNum <= 199)
+                        await _handshakeHandler.HandleAsync(
                                 session, message, cancellationToken);
-                            break;
 
-                        case ClientMessageType.MatchingStartRequest:
-                        case ClientMessageType.MatchingCancelRequest:
-                        case ClientMessageType.FormationSubmit:
-                            await _lobbyHandler.HandleAsync(
-                                session, message, cancellationToken);
-                            break;
+                    else if (200 <= typeNum && typeNum <= 299)
+                        await _lobbyHandler.HandleAsync(
+                            session, message, cancellationToken);
 
-                        case ClientMessageType.GameSceneReady:
-                        case ClientMessageType.MovePieceRequest:
-                        case ClientMessageType.GameEndRequest:
-                            await _gameHandler.HandleAsync(
-                                session, message, cancellationToken);
-                            break;
+                    else if (300 <= typeNum && typeNum <= 399)
+                        await _gameHandler.HandleAsync(
+                            session, message, cancellationToken);
 
-                        default:
-                            throw new InvalidOperationException(
-                                $"처리할 수 없는 메시지입니다: {message.Type}");
-                    }
+                    else
+                        throw new InvalidOperationException(
+                                $"처리할 수 없는 메시지입니다: {message.Type}");               
                 }
             }
             catch (OperationCanceledException)
