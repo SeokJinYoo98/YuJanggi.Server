@@ -35,6 +35,39 @@ namespace YuJanggi.Server.Features.Game
         #endregion
 
         #region Public Methods
+        public (
+            GameRequestResult Result,
+            bool IsConfirmed,
+            IReadOnlyList<IClientSession> Targets)
+            ProcessRematch(
+                IClientSession session,
+                ProtocolPlayerTeam requester)
+        {
+            var room = _gameRoomManager.GetRoomBySession(session);
+            if (room is null)
+                return (GameRequestResult.Failed, false, Array.Empty<IClientSession>());
+
+            lock (room.SyncRoot)
+            {
+                if (!room.Contains(session) || room.State != GameRoomState.Ended)
+                    return (GameRequestResult.Failed, false, Array.Empty<IClientSession>());
+
+                var actualTeam = room.ChoPlayer?.ClientId == session.ClientId
+                    ? ProtocolPlayerTeam.Cho
+                    : ProtocolPlayerTeam.Han;
+
+                if (requester != actualTeam)
+                    return (GameRequestResult.Mismatch, false, Array.Empty<IClientSession>());
+
+                bool confirmed = room.TryConfirmRematch(session);
+
+                return (
+                    GameRequestResult.Accepted,
+                    confirmed,
+                    confirmed ? GetTargets(room) : Array.Empty<IClientSession>());
+            }
+        }
+
         public (GameRequestResult Result, IReadOnlyList<IClientSession> Targets)
             ProcessPassTurn(
                 IClientSession session,
@@ -158,7 +191,7 @@ namespace YuJanggi.Server.Features.Game
                 ?? throw new InvalidOperationException(
                     "참가 중인 게임룸이 없습니다.");
         public MoveProcessingResult ProcessMove(
-            IClientSession session, 
+            IClientSession session,
             MovePieceRequest request)
         {
             ArgumentNullException.ThrowIfNull(request);
@@ -173,7 +206,7 @@ namespace YuJanggi.Server.Features.Game
                     : null;
 
                 return new MoveProcessingResult(
-                    result, 
+                    result,
                     confirmedMove,
                     result == MovePieceResult.Accepted
                         ? GetTargets(room) : Array.Empty<IClientSession>());

@@ -13,6 +13,7 @@ namespace YuJanggi.Server.Features.Game
         private GameEndSubmittedPlayers _gameEndSubmittedPlayers = GameEndSubmittedPlayers.None;
         private GameEndSubmission? _choGameEndSubmission;
         private GameEndSubmission? _hanGameEndSubmission;
+        private ReadyPlayers _rematchRequestedPlayers = ReadyPlayers.None;
 
         private ReadyPlayers _readyPlayers 
             = ReadyPlayers.None;
@@ -99,6 +100,30 @@ namespace YuJanggi.Server.Features.Game
         #endregion
 
         #region Private Methods
+        internal bool TryConfirmRematch(IClientSession session)
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Ended || !Contains(session))
+                    return false;
+
+                _rematchRequestedPlayers |= ChoPlayer!.ClientId == session.ClientId
+                    ? ReadyPlayers.Cho
+                    : ReadyPlayers.Han;
+
+                if (_rematchRequestedPlayers != ReadyPlayers.All)
+                    return false;
+
+                _rematchRequestedPlayers = ReadyPlayers.None;
+                _readyPlayers = ReadyPlayers.None;
+                _gameEndSubmittedPlayers = GameEndSubmittedPlayers.None;
+                _choGameEndSubmission = null;
+                _hanGameEndSubmission = null;
+                _state = GameRoomState.WaitingForReady;
+                return true;
+            }
+        }
+
         internal bool HasSubmittedGameEnd(IClientSession session)
             => GetGameEndSubmission(session) is not null;
 

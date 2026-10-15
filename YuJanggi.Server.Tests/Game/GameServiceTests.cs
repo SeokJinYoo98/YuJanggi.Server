@@ -127,6 +127,42 @@ namespace YuJanggi.Server.Tests.Game
             Assert.AreEqual(GameRoomState.Playing, room.State);
         }
 
+        [TestMethod]
+        public async Task RematchRequiresBothPlayersAndResetsPreviousGameState()
+        {
+            using var cho = await Peer.Create();
+            using var han = await Peer.Create();
+            await using var rooms = CreateRoomManager(cho.Session, han.Session);
+            var room = rooms.CreateGameRoom("rematch", cho.Session, han.Session);
+            var service = new GameService(rooms);
+            service.MarkPlayerReady(cho.Session);
+            service.MarkPlayerReady(han.Session);
+            service.ProcessGameEnd(cho.Session, End(ProtocolPlayerTeam.Cho, 12));
+            service.ProcessGameEnd(han.Session, End(ProtocolPlayerTeam.Cho, 12));
+
+            var first = service.ProcessRematch(cho.Session, ProtocolPlayerTeam.Cho);
+            Assert.AreEqual(GameRequestResult.Accepted, first.Result);
+            Assert.IsFalse(first.IsConfirmed);
+            Assert.IsEmpty(first.Targets);
+            Assert.IsFalse(service.ProcessRematch(cho.Session, ProtocolPlayerTeam.Cho).IsConfirmed);
+            Assert.AreEqual(GameRoomState.Ended, room.State);
+
+            var second = service.ProcessRematch(han.Session, ProtocolPlayerTeam.Han);
+            Assert.AreEqual(GameRequestResult.Accepted, second.Result);
+            Assert.IsTrue(second.IsConfirmed);
+            Assert.HasCount(2, second.Targets);
+            Assert.AreEqual(GameRoomState.WaitingForReady, room.State);
+            Assert.IsFalse(room.ChoReady);
+            Assert.IsFalse(room.HanReady);
+            Assert.IsFalse(room.HasSubmittedGameEnd(cho.Session));
+            Assert.IsFalse(room.HasSubmittedGameEnd(han.Session));
+            Assert.IsFalse(service.ProcessRematch(han.Session, ProtocolPlayerTeam.Han).IsConfirmed);
+
+            Assert.IsNull(service.MarkPlayerReady(cho.Session));
+            Assert.IsNotNull(service.MarkPlayerReady(han.Session));
+            Assert.AreEqual(GameRoomState.Playing, room.State);
+        }
+
         internal static GameEndRequest End(ProtocolPlayerTeam winner, int moves)
             => new() { Winner = winner, TotalMoves = moves };
     }
