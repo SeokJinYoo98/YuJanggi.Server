@@ -40,10 +40,11 @@ namespace YuJanggi.Server.Tests.Game
             foreach (var peer in new[] { cho, han })
             {
                 var message = await peer.Read(timeout.Token);
-                Assert.AreEqual(ServerMessageType.MovePieceEvent, message.Type);
+                Assert.AreEqual(ServerMessageType.TurnCompletedEvent, message.Type);
                 Assert.IsNull(message.RequestId);
-                var move = message.GetPayload<MovePieceEvent>();
+                var move = message.GetPayload<TurnCompletedEvent>();
                 Assert.AreEqual(request.Team, move.Team);
+                Assert.AreEqual(ProtocolTurnAction.Move, move.Action);
                 Assert.AreEqual(request.FromX, move.FromX);
                 Assert.AreEqual(request.FromZ, move.FromZ);
                 Assert.AreEqual(request.ToX, move.ToX);
@@ -52,7 +53,7 @@ namespace YuJanggi.Server.Tests.Game
         }
 
         [TestMethod]
-        public async Task GameEndResponsePrecedesFinalEventAndRoomRemoval()
+        public async Task GameEndResponsePrecedesFinalEventAndRoomIsRetained()
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             using var cho = await Peer.Create();
@@ -70,7 +71,7 @@ namespace YuJanggi.Server.Tests.Game
             var first = await cho.Read(timeout.Token);
             Assert.AreEqual(ServerMessageType.GameEndResponse, first.Type);
             Assert.AreEqual("cho-end", first.RequestId);
-            Assert.AreEqual(GameEndResult.Accepted, first.GetPayload<GameEndResponse>().Result);
+            Assert.AreEqual(GameRequestResult.Accepted, first.GetPayload<GameRequestResponse>().Result);
             Assert.AreEqual(GameRoomState.Playing, room.State);
             Assert.IsFalse(cho.Client.GetStream().DataAvailable);
             Assert.IsFalse(han.Client.GetStream().DataAvailable);
@@ -80,7 +81,7 @@ namespace YuJanggi.Server.Tests.Game
             var second = await han.Read(timeout.Token);
             Assert.AreEqual(ServerMessageType.GameEndResponse, second.Type);
             Assert.AreEqual("han-end", second.RequestId);
-            Assert.AreEqual(GameEndResult.Accepted, second.GetPayload<GameEndResponse>().Result);
+            Assert.AreEqual(GameRequestResult.Accepted, second.GetPayload<GameRequestResponse>().Result);
             foreach (var peer in new[] { cho, han })
             {
                 var message = await peer.Read(timeout.Token);
@@ -90,12 +91,12 @@ namespace YuJanggi.Server.Tests.Game
                 Assert.AreEqual(request.Winner, ended.Winner);
                 Assert.AreEqual(request.TotalMoves, ended.TotalMoves);
             }
-            Assert.AreEqual(GameRoomState.Closed, room.State);
-            Assert.IsFalse(rooms.TryGetRoom(room.MatchId, out _));
+            Assert.AreEqual(GameRoomState.Ended, room.State);
+            Assert.IsTrue(rooms.TryGetRoom(room.MatchId, out _));
         }
 
         [TestMethod]
-        public async Task EndedRoomIsRemovedWhenResponseSendFails()
+        public async Task EndedRoomIsRetainedWhenResponseSendFails()
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             using var cho = await Peer.Create();
@@ -111,8 +112,8 @@ namespace YuJanggi.Server.Tests.Game
 
             await ExpectFailure(() => new GameHandler(service).HandleAsync(han.Session,
                 Message(ClientMessageType.GameEndRequest, "failed-end", request), timeout.Token));
-            Assert.AreEqual(GameRoomState.Closed, room.State);
-            Assert.IsFalse(rooms.TryGetRoom(room.MatchId, out _));
+            Assert.AreEqual(GameRoomState.Ended, room.State);
+            Assert.IsTrue(rooms.TryGetRoom(room.MatchId, out _));
         }
 
         private static ClientMessage Message<T>(ClientMessageType type, string id, T payload)

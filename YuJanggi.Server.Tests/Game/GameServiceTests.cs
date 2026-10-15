@@ -57,15 +57,15 @@ namespace YuJanggi.Server.Tests.Game
             Assert.AreEqual(GameRoomState.Playing, room.State);
 
             var first = service.ProcessGameEnd(cho.Session, End(ProtocolPlayerTeam.Cho, 12));
-            Assert.AreEqual(GameEndResult.Accepted, first.Result);
+            Assert.AreEqual(GameRequestResult.Accepted, first.Result);
             Assert.IsFalse(first.IsGameEnded);
             Assert.IsEmpty(first.Targets);
             Assert.AreEqual(GameRoomState.Playing, room.State);
-            Assert.AreEqual(GameEndResult.Failed,
+            Assert.AreEqual(GameRequestResult.Failed,
                 service.ProcessGameEnd(cho.Session, End(ProtocolPlayerTeam.Cho, 12)).Result);
 
             var second = service.ProcessGameEnd(han.Session, End(ProtocolPlayerTeam.Cho, 12));
-            Assert.AreEqual(GameEndResult.Accepted, second.Result);
+            Assert.AreEqual(GameRequestResult.Accepted, second.Result);
             Assert.IsTrue(second.IsGameEnded);
             Assert.AreEqual(room.MatchId, second.MatchId);
             Assert.AreEqual(ProtocolPlayerTeam.Cho, second.Winner);
@@ -73,7 +73,7 @@ namespace YuJanggi.Server.Tests.Game
             Assert.HasCount(2, second.Targets);
             Assert.IsTrue(room.AllGameEndSubmitted);
             Assert.AreEqual(GameRoomState.Ended, room.State);
-            Assert.AreEqual(GameEndResult.Failed,
+            Assert.AreEqual(GameRequestResult.Failed,
                 service.ProcessGameEnd(han.Session, End(ProtocolPlayerTeam.Cho, 12)).Result);
 
             service.CloseGame(room.MatchId);
@@ -94,9 +94,9 @@ namespace YuJanggi.Server.Tests.Game
             service.MarkPlayerReady(han.Session);
             service.ProcessGameEnd(cho.Session, End(ProtocolPlayerTeam.Cho, 12));
 
-            Assert.AreEqual(GameEndResult.Mismatch,
+            Assert.AreEqual(GameRequestResult.Mismatch,
                 service.ProcessGameEnd(han.Session, End(ProtocolPlayerTeam.Han, 12)).Result);
-            Assert.AreEqual(GameEndResult.Mismatch,
+            Assert.AreEqual(GameRequestResult.Mismatch,
                 service.ProcessGameEnd(han.Session, End(ProtocolPlayerTeam.Cho, 13)).Result);
             Assert.IsFalse(room.HasSubmittedGameEnd(han.Session));
             Assert.AreEqual(GameRoomState.Playing, room.State);
@@ -112,18 +112,54 @@ namespace YuJanggi.Server.Tests.Game
             await using var rooms = CreateRoomManager(cho.Session, han.Session, outsider.Session);
             var room = rooms.CreateGameRoom("invalid", cho.Session, han.Session);
             var service = new GameService(rooms);
-            Assert.AreEqual(GameEndResult.Failed,
+            Assert.AreEqual(GameRequestResult.Failed,
                 service.ProcessGameEnd(cho.Session, End(ProtocolPlayerTeam.Cho, 1)).Result);
             service.MarkPlayerReady(cho.Session);
             service.MarkPlayerReady(han.Session);
-            Assert.AreEqual(GameEndResult.Failed,
+            Assert.AreEqual(GameRequestResult.Failed,
                 service.ProcessGameEnd(outsider.Session, End(ProtocolPlayerTeam.Cho, 1)).Result);
-            Assert.AreEqual(GameEndResult.Failed,
+            Assert.AreEqual(GameRequestResult.Failed,
                 service.ProcessGameEnd(cho.Session, End(ProtocolPlayerTeam.Cho, -1)).Result);
-            Assert.AreEqual(GameEndResult.Failed,
+            Assert.AreEqual(GameRequestResult.Failed,
                 service.ProcessGameEnd(cho.Session, End((ProtocolPlayerTeam)255, 1)).Result);
             Assert.IsFalse(room.HasSubmittedGameEnd(cho.Session));
             Assert.IsFalse(room.HasSubmittedGameEnd(han.Session));
+            Assert.AreEqual(GameRoomState.Playing, room.State);
+        }
+
+        [TestMethod]
+        public async Task RematchRequiresBothPlayersAndResetsPreviousGameState()
+        {
+            using var cho = await Peer.Create();
+            using var han = await Peer.Create();
+            await using var rooms = CreateRoomManager(cho.Session, han.Session);
+            var room = rooms.CreateGameRoom("rematch", cho.Session, han.Session);
+            var service = new GameService(rooms);
+            service.MarkPlayerReady(cho.Session);
+            service.MarkPlayerReady(han.Session);
+            service.ProcessGameEnd(cho.Session, End(ProtocolPlayerTeam.Cho, 12));
+            service.ProcessGameEnd(han.Session, End(ProtocolPlayerTeam.Cho, 12));
+
+            var first = service.ProcessRematch(cho.Session, ProtocolPlayerTeam.Cho);
+            Assert.AreEqual(GameRequestResult.Accepted, first.Result);
+            Assert.IsFalse(first.IsConfirmed);
+            Assert.IsEmpty(first.Targets);
+            Assert.IsFalse(service.ProcessRematch(cho.Session, ProtocolPlayerTeam.Cho).IsConfirmed);
+            Assert.AreEqual(GameRoomState.Ended, room.State);
+
+            var second = service.ProcessRematch(han.Session, ProtocolPlayerTeam.Han);
+            Assert.AreEqual(GameRequestResult.Accepted, second.Result);
+            Assert.IsTrue(second.IsConfirmed);
+            Assert.HasCount(2, second.Targets);
+            Assert.AreEqual(GameRoomState.WaitingForReady, room.State);
+            Assert.IsFalse(room.ChoReady);
+            Assert.IsFalse(room.HanReady);
+            Assert.IsFalse(room.HasSubmittedGameEnd(cho.Session));
+            Assert.IsFalse(room.HasSubmittedGameEnd(han.Session));
+            Assert.IsFalse(service.ProcessRematch(han.Session, ProtocolPlayerTeam.Han).IsConfirmed);
+
+            Assert.IsNull(service.MarkPlayerReady(cho.Session));
+            Assert.IsNotNull(service.MarkPlayerReady(han.Session));
             Assert.AreEqual(GameRoomState.Playing, room.State);
         }
 
