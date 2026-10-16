@@ -32,14 +32,16 @@ namespace YuJanggi.Server
         private readonly ConnectionService _connectionService;
         private readonly LoginService _loginService;
         private readonly GameRoomManager _gameRoomManager;
-        private readonly LobbyService _lobbyService;
-        private readonly GameService _gameService;
+
         private readonly Lock _roomSync = new();
 
         private readonly ProtocolHandshakeHandler _handshakeHandler;
         private readonly LobbyHandler _lobbyHandler;
+        private readonly LobbyService _lobbyService;
         private readonly GameHandler _gameHandler;
-
+        private readonly GameService _gameService;
+        private readonly ChatService _chatService;
+        private readonly ChatHandler _chatHandler;
         #endregion
 
         #region Constructors
@@ -53,14 +55,20 @@ namespace YuJanggi.Server
             _sessionManager =
                 new ClientSessionManager();
 
-            _gameRoomManager = new GameRoomManager(_sessionManager, _roomSync);
-            _connectionService = new ConnectionService(_sessionManager, _roomSync);
-            _lobbyService = new LobbyService(new LobbyManager(), _gameRoomManager);
-            _gameService = new GameService(_gameRoomManager);
-            _loginService = new LoginService(new LoginManager());
-            _handshakeHandler = new ProtocolHandshakeHandler(_loginService);
-            _lobbyHandler = new LobbyHandler(_lobbyService);
-            _gameHandler = new GameHandler(_gameService);
+            _gameRoomManager    = new (_sessionManager, _roomSync);
+            _connectionService  = new (_sessionManager, _roomSync);
+            _loginService       = new (new());
+            _handshakeHandler   = new (_loginService);
+
+            _lobbyService       = new (new(), _gameRoomManager);
+            _lobbyHandler       = new (_lobbyService);
+
+            _gameService        = new (_gameRoomManager);
+            _gameHandler        = new (_gameService);
+
+            _chatService        = new (_gameRoomManager);
+            _chatHandler        = new(_chatService);
+
         }
 
         #endregion
@@ -138,9 +146,11 @@ namespace YuJanggi.Server
                 }
                 finally
                 {
+                    _chatService.Clear();
                     _loginService.Clear();
                     await _lobbyService.ClearAsync();
                     await _gameService.ClearAsync();
+                  
                 }
             }
         }
@@ -174,6 +184,9 @@ namespace YuJanggi.Server
                         await _gameHandler.HandleAsync(
                             session, message, cancellationToken);
 
+                    else if (400 <= typeNum && typeNum <= 499)
+                        await _chatHandler.HandleAsync(
+                            session, message, cancellationToken);
                     else
                         throw new InvalidOperationException(
                                 $"처리할 수 없는 메시지입니다: {message.Type}");               
@@ -208,6 +221,7 @@ namespace YuJanggi.Server
 
             bool removed = _connectionService.UnregisterSession(session);
             _loginService.DisconnectPlayer(session);
+            _chatService.DisconnectPlayer(session);
 
             // 서버 잠금을 해제한 뒤 매칭 상태와 게임룸을 각각 정리합니다.
             await _lobbyService.DisconnectPlayerAsync(session);
@@ -218,7 +232,7 @@ namespace YuJanggi.Server
                 await roomCleanup;
                 return;
             }
-
+           
             _connectionService.CloseConnection(session);
 
             await roomCleanup;
