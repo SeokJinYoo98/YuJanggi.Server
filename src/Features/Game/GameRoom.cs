@@ -16,9 +16,6 @@ namespace YuJanggi.Server.Features.Game
         private readonly Lock _sync = new();
         private readonly IJanggiEngine _engine;
         private GameEndProcessingResult? _engineGameEnd;
-        private GameEndSubmittedPlayers _gameEndSubmittedPlayers = GameEndSubmittedPlayers.None;
-        private GameEndSubmission? _choGameEndSubmission;
-        private GameEndSubmission? _hanGameEndSubmission;
         private ReadyPlayers _rematchRequestedPlayers = ReadyPlayers.None;
 
         private ReadyPlayers _readyPlayers 
@@ -44,10 +41,6 @@ namespace YuJanggi.Server.Features.Game
         public bool ChoReady { get { lock (_sync) return (_readyPlayers & ReadyPlayers.Cho) != 0; } }
         public bool HanReady { get { lock (_sync) return (_readyPlayers & ReadyPlayers.Han) != 0; } }
         public bool AllReady { get { lock (_sync) return _readyPlayers == ReadyPlayers.All; } }
-        public bool AllGameEndSubmitted
-        {
-            get { lock (_sync) return _gameEndSubmittedPlayers == GameEndSubmittedPlayers.All; }
-        }
 
         public bool Started 
             => State == GameRoomState.Playing;
@@ -154,15 +147,29 @@ namespace YuJanggi.Server.Features.Game
             lock (_sync)
                 _state = GameRoomState.Closed;
         }
-        internal bool TryEndByGiveUp()
+        internal GameEndProcessingResult ProcessGiveUp(ProtocolPlayerTeam requester)
         {
             lock (_sync)
             {
-                if (_state != GameRoomState.Playing)
-                    return false;
+                if (_state != GameRoomState.Playing ||
+                    requester is not (ProtocolPlayerTeam.Cho or ProtocolPlayerTeam.Han))
+                    return new(GameRequestResult.Failed, false, MatchId,
+                        ProtocolPlayerTeam.None, 0, Array.Empty<IClientSession>());
 
+                var winner = requester == ProtocolPlayerTeam.Cho
+                    ? ProtocolPlayerTeam.Han
+                    : ProtocolPlayerTeam.Cho;
+
+                _engine.EndEngine();
                 _state = GameRoomState.Ended;
-                return true;
+                return new(
+                    GameRequestResult.Accepted,
+                    true,
+                    MatchId,
+                    winner,
+                    _engine.References.ReadOnlyRecord.Count,
+                    Array.Empty<IClientSession>(),
+                    ProtocolGameEndReason.GiveUp);
             }
         }
         #endregion
@@ -184,58 +191,7 @@ namespace YuJanggi.Server.Features.Game
 
                 _rematchRequestedPlayers = ReadyPlayers.None;
                 _readyPlayers = ReadyPlayers.None;
-                _gameEndSubmittedPlayers = GameEndSubmittedPlayers.None;
-                _choGameEndSubmission = null;
-                _hanGameEndSubmission = null;
                 _state = GameRoomState.WaitingForReady;
-                return true;
-            }
-        }
-
-        internal bool HasSubmittedGameEnd(IClientSession session)
-            => GetGameEndSubmission(session) is not null;
-
-        internal GameEndSubmission? GetGameEndSubmission(IClientSession session)
-        {
-            ArgumentNullException.ThrowIfNull(session);
-            lock (_sync)
-            {
-                if (ChoPlayer?.ClientId == session.ClientId)
-                    return _choGameEndSubmission;
-                if (HanPlayer?.ClientId == session.ClientId)
-                    return _hanGameEndSubmission;
-                throw new InvalidOperationException("룸 참가자가 아닙니다.");
-            }
-        }
-
-        internal void MarkGameEndSubmitted(IClientSession session, GameEndSubmission submission)
-        {
-            ArgumentNullException.ThrowIfNull(submission);
-            lock (_sync)
-            {
-                if (_state != GameRoomState.Playing || HasSubmittedGameEnd(session))
-                    throw new InvalidOperationException("게임 종료 결과를 제출할 수 없습니다.");
-                if (ChoPlayer!.ClientId == session.ClientId)
-                {
-                    _choGameEndSubmission = submission;
-                    _gameEndSubmittedPlayers |= GameEndSubmittedPlayers.Cho;
-                }
-                else
-                {
-                    _hanGameEndSubmission = submission;
-                    _gameEndSubmittedPlayers |= GameEndSubmittedPlayers.Han;
-                }
-            }
-        }
-
-        internal bool TryMarkEnded()
-        {
-            lock (_sync)
-            {
-                if (_state != GameRoomState.Playing || !AllGameEndSubmitted ||
-                    _choGameEndSubmission != _hanGameEndSubmission)
-                    return false;
-                _state = GameRoomState.Ended;
                 return true;
             }
         }

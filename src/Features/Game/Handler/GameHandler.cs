@@ -129,21 +129,7 @@ namespace YuJanggi.Server.Features.Game
             if (!result.IsGameEnded)
                 return;
 
-            var gameEndedEvent = new GameEndedEvent
-            {
-                EndReason  = ProtocolGameEndReason.GiveUp,
-                Winner     = result.Winner,
-                TotalMoves = result.TotalMoves
-            };
-
-            var ended = ServerMessageFactory.CreateEvent(
-                ServerMessageType.GameEndedEvent,
-                gameEndedEvent);
-
-            await BroadcastAsync(
-                result.Targets,
-                ended,
-                token);
+            await BroadcastGameEndedAsync(result, token);
 
             // 종료된 방은 재대결을 위해 유지하며, 연결 종료 시 기존 경로에서 정리합니다.
             // TODO: 응답 전송 실패 시에도 상대에게 종료 Event를 전달할지 정책을 정합니다.

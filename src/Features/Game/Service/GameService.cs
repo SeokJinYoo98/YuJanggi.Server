@@ -17,7 +17,6 @@ namespace YuJanggi.Server.Features.Game
     }
     internal sealed record GameStartProcessingResult(
         DateTimeOffset StartedAt, IReadOnlyList<IClientSession> Targets);
-    internal sealed record GameEndSubmission(ProtocolPlayerTeam Winner, int TotalMoves);
     internal sealed record GameEndProcessingResult(
         GameRequestResult Result, bool IsGameEnded, string MatchId, ProtocolPlayerTeam Winner,
         int TotalMoves, IReadOnlyList<IClientSession> Targets,
@@ -107,8 +106,28 @@ namespace YuJanggi.Server.Features.Game
         public GameEndProcessingResult ProcessGiveUp(
             IClientSession session,
             ProtocolPlayerTeam requester)
+            => ProcessExternalGameEnd(session, requester);
+
+        public GameEndProcessingResult ProcessGameEnd(
+            IClientSession session, GameEndRequest request)
         {
             ArgumentNullException.ThrowIfNull(session);
+            ArgumentNullException.ThrowIfNull(request);
+
+            // 정상 결과 보고는 받지 않습니다. Winner / TotalMoves는 서버에서 결정합니다.
+            if (request.EndReason != ProtocolGameEndReason.GiveUp)
+                return GameEndFailure(GameRequestResult.Failed);
+
+            return ProcessExternalGameEnd(session, requester: null);
+        }
+
+        private GameEndProcessingResult ProcessExternalGameEnd(
+            IClientSession session,
+            ProtocolPlayerTeam? requester)
+        {
+            ArgumentNullException.ThrowIfNull(session);
+            if (!session.IsHandshakeCompleted)
+                return GameEndFailure(GameRequestResult.Failed);
 
             var room = _gameRoomManager.GetRoomBySession(session);
             if (room is null)
@@ -123,60 +142,13 @@ namespace YuJanggi.Server.Features.Game
                     ? ProtocolPlayerTeam.Cho
                     : ProtocolPlayerTeam.Han;
 
-                if (requester != actualTeam)
+                if (requester.HasValue && requester.Value != actualTeam)
                     return GameEndFailure(GameRequestResult.Mismatch);
 
-                var winner = actualTeam == ProtocolPlayerTeam.Cho
-                    ? ProtocolPlayerTeam.Han
-                    : ProtocolPlayerTeam.Cho;
-
-                if (!room.TryEndByGiveUp())
-                    return GameEndFailure(GameRequestResult.Failed);
-
-                // TODO: 서버의 실제 진행 수로 대체합니다. 현재 GameRoom에는 수 집계가 없습니다.
-                const int totalMoves = 0;
-
-                return new GameEndProcessingResult(
-                    GameRequestResult.Accepted,
-                    true,
-                    room.MatchId,
-                    winner,
-                    totalMoves,
-                    GetTargets(room));
-            }
-        }
-        public GameEndProcessingResult ProcessGameEnd(
-            IClientSession session, GameEndRequest request)
-        {
-            ArgumentNullException.ThrowIfNull(session);
-            ArgumentNullException.ThrowIfNull(request);
-            var room = _gameRoomManager.GetRoomBySession(session);
-            if (room is null)
-                return GameEndFailure(GameRequestResult.Failed);
-
-            lock (room.SyncRoot)
-            {
-                if (!room.Contains(session) || room.State != GameRoomState.Playing ||
-                    room.HasSubmittedGameEnd(session) || request.TotalMoves < 0 ||
-                    !Enum.IsDefined(request.Winner))
-                    return GameEndFailure(GameRequestResult.Failed);
-
-                var opponent = room.GetOpponent(session);
-                if (opponent is null)
-                    return GameEndFailure(GameRequestResult.Failed);
-
-                var submission = new GameEndSubmission(request.Winner, request.TotalMoves);
-                var otherSubmission = room.GetGameEndSubmission(opponent);
-                // TODO: Engine 이식 후 서버 최종 결과와 각 제출값을 비교합니다.
-                // 현재는 양측 Client의 합의만 확인하며 서버 계산 결과가 아닙니다.
-                if (otherSubmission is not null && otherSubmission != submission)
-                    return GameEndFailure(GameRequestResult.Mismatch);
-
-                room.MarkGameEndSubmitted(session, submission);
-                var isGameEnded = room.AllGameEndSubmitted && room.TryMarkEnded();
-                return new GameEndProcessingResult(GameRequestResult.Accepted, isGameEnded,
-                    room.MatchId, submission.Winner, submission.TotalMoves,
-                    isGameEnded ? GetTargets(room) : Array.Empty<IClientSession>());
+                var result = room.ProcessGiveUp(actualTeam);
+                return result.IsGameEnded
+                    ? result with { Targets = GetTargets(room) }
+                    : result;
             }
         }
         public GameStartProcessingResult? MarkPlayerReady(IClientSession session)

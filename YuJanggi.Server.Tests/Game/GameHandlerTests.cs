@@ -53,7 +53,9 @@ namespace YuJanggi.Server.Tests.Game
         }
 
         [TestMethod]
-        public async Task GameEndResponsePrecedesFinalEventAndRoomIsRetained()
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task ExternalEndResponsePrecedesOneEventAndRoomIsRetained(bool useGameEndRequest)
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             using var cho = await Peer.Create();
@@ -64,35 +66,40 @@ namespace YuJanggi.Server.Tests.Game
             service.MarkPlayerReady(cho.Session);
             service.MarkPlayerReady(han.Session);
             var handler = new GameHandler(service);
-            var request = GameServiceTests.End(ProtocolPlayerTeam.Han, 20);
+            var request = useGameEndRequest
+                ? Message(ClientMessageType.GameEndRequest, "external-end",
+                    GameServiceTests.End(ProtocolPlayerTeam.Cho, 999))
+                : Message(ClientMessageType.GiveUpRequest, "external-end",
+                    new GamePlayerRequest { Requester = ProtocolPlayerTeam.Cho });
+            var responseType = useGameEndRequest
+                ? ServerMessageType.GameEndResponse
+                : ServerMessageType.GiveUpResponse;
 
-            await handler.HandleAsync(cho.Session,
-                Message(ClientMessageType.GameEndRequest, "cho-end", request), timeout.Token);
-            var first = await cho.Read(timeout.Token);
-            Assert.AreEqual(ServerMessageType.GameEndResponse, first.Type);
-            Assert.AreEqual("cho-end", first.RequestId);
-            Assert.AreEqual(GameRequestResult.Accepted, first.GetPayload<GameRequestResponse>().Result);
-            Assert.AreEqual(GameRoomState.Playing, room.State);
-            Assert.IsFalse(cho.Client.GetStream().DataAvailable);
-            Assert.IsFalse(han.Client.GetStream().DataAvailable);
+            await handler.HandleAsync(cho.Session, request, timeout.Token);
+            var response = await cho.Read(timeout.Token);
+            Assert.AreEqual(responseType, response.Type);
+            Assert.AreEqual("external-end", response.RequestId);
+            Assert.AreEqual(GameRequestResult.Accepted, response.GetPayload<GameRequestResponse>().Result);
 
-            await handler.HandleAsync(han.Session,
-                Message(ClientMessageType.GameEndRequest, "han-end", request), timeout.Token);
-            var second = await han.Read(timeout.Token);
-            Assert.AreEqual(ServerMessageType.GameEndResponse, second.Type);
-            Assert.AreEqual("han-end", second.RequestId);
-            Assert.AreEqual(GameRequestResult.Accepted, second.GetPayload<GameRequestResponse>().Result);
             foreach (var peer in new[] { cho, han })
             {
                 var message = await peer.Read(timeout.Token);
                 Assert.AreEqual(ServerMessageType.GameEndedEvent, message.Type);
                 Assert.IsNull(message.RequestId);
                 var ended = message.GetPayload<GameEndedEvent>();
-                Assert.AreEqual(request.Winner, ended.Winner);
-                Assert.AreEqual(request.TotalMoves, ended.TotalMoves);
+                Assert.AreEqual(ProtocolPlayerTeam.Han, ended.Winner);
+                Assert.AreEqual(ProtocolGameEndReason.GiveUp, ended.EndReason);
+                Assert.AreEqual(0, ended.TotalMoves);
             }
             Assert.AreEqual(GameRoomState.Ended, room.State);
             Assert.IsTrue(rooms.TryGetRoom(room.MatchId, out _));
+
+            await handler.HandleAsync(cho.Session, request, timeout.Token);
+            var duplicate = await cho.Read(timeout.Token);
+            Assert.AreEqual(responseType, duplicate.Type);
+            Assert.AreEqual(GameRequestResult.Failed, duplicate.GetPayload<GameRequestResponse>().Result);
+            Assert.IsFalse(cho.Client.GetStream().DataAvailable);
+            Assert.IsFalse(han.Client.GetStream().DataAvailable);
         }
 
         [TestMethod]
@@ -107,7 +114,6 @@ namespace YuJanggi.Server.Tests.Game
             service.MarkPlayerReady(cho.Session);
             service.MarkPlayerReady(han.Session);
             var request = GameServiceTests.End(ProtocolPlayerTeam.Cho, 10);
-            service.ProcessGameEnd(cho.Session, request);
             han.Session.Dispose();
 
             await ExpectFailure(() => new GameHandler(service).HandleAsync(han.Session,
