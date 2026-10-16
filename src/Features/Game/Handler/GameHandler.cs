@@ -6,7 +6,6 @@ namespace YuJanggi.Server.Features.Game
     using Protocol.Messages;
 
     using Core.Messaging;
-    using Connection;
     using Core.Sessions;
 
     /// <summary>인게임 Protocol 요청을 검증하고 서비스 결과를 메시지로 생성·전송합니다.</summary>

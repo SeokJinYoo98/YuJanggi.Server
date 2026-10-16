@@ -3,7 +3,6 @@ namespace YuJanggi.Server.Features.Game
     using Protocol.InGame;
     using Protocol.Matching;
 
-    using Connection;
     using Core.Sessions;
     using State;
 
