@@ -34,7 +34,29 @@ namespace YuJanggi.Server.Features.Game
                 throw new InvalidOperationException(
                     "Handshake가 완료되지 않았습니다.");
 
-            return message.Type switch
+            var room = _gameService.FindRoomBySession(session);
+            if (room is null)
+                return HandleRequestAsync(session, message, cancellationToken);
+
+            return QueueRoomOperation(room, async () =>
+            {
+                // 요청 처리 직전까지의 경과 시간도 Engine이 먼저 판단합니다.
+                await HandleTickAsync(room, cancellationToken);
+                await HandleRequestAsync(session, message, cancellationToken);
+            }, cancellationToken);
+        }
+
+        public Task TickAsync(GameRoom room, CancellationToken cancellationToken)
+            => QueueRoomOperation(room,
+                () => HandleTickAsync(room, cancellationToken), cancellationToken);
+        #endregion
+
+        #region Private Methods
+        private Task HandleRequestAsync(
+            IClientSession session,
+            ClientMessage message,
+            CancellationToken cancellationToken)
+            => message.Type switch
             {
                 ClientMessageType.GameSceneReady
                     => HandleGameSceneReadyAsync(
@@ -70,10 +92,56 @@ namespace YuJanggi.Server.Features.Game
                     => throw new InvalidOperationException(
                         $"처리할 수 없는 인게임 메시지입니다: {message.Type}")
             };
-        }
-        #endregion
 
-        #region Private Methods
+        private static Task QueueRoomOperation(
+            GameRoom room, Func<Task> operation, CancellationToken cancellationToken)
+        {
+            lock (room.SyncRoot)
+            {
+                var previous = room.PendingOperation;
+                var pending = RunAfterAsync(previous, operation, cancellationToken);
+                room.PendingOperation = pending;
+                return pending;
+            }
+        }
+
+        private static async Task RunAfterAsync(
+            Task previous, Func<Task> operation, CancellationToken cancellationToken)
+        {
+            // 요청 처리와 송신은 큐를 연결한 SyncRoot 잠금 밖에서 시작합니다.
+            await Task.Yield();
+            try
+            {
+                await previous;
+            }
+            catch (Exception)
+            {
+                // 이전 작업의 호출자가 실패를 처리합니다. 다음 작업까지 실패시키지 않습니다.
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await operation();
+        }
+
+        private async Task HandleTickAsync(GameRoom room, CancellationToken cancellationToken)
+        {
+            var result = _gameService.ProcessTick(room);
+            if (result is null)
+                return;
+
+            var completed = ServerMessageFactory.CreateEvent(
+                ServerMessageType.TurnCompletedEvent,
+                new TurnCompletedEvent
+                {
+                    Team = result.Team,
+                    Action = ProtocolTurnAction.Pass
+                });
+
+            await BroadcastAsync(result.Targets, completed, cancellationToken);
+            if (result.GameEnd is { } gameEnd)
+                await BroadcastGameEndedAsync(gameEnd, cancellationToken);
+        }
+
         private async Task HandlePassTurnRequestAsync(
             IClientSession session,
             ClientMessage message,

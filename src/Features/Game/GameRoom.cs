@@ -1,5 +1,6 @@
 namespace YuJanggi.Server.Features.Game
 {
+    using System.Diagnostics;
     using Core.Sessions;
     using Engine.Domain;
     using Engine.JanggiEngine;
@@ -12,10 +13,15 @@ namespace YuJanggi.Server.Features.Game
     /// <summary>한 대국의 두 참가자와 네트워크 룸의 준비·시작·종료 상태를 소유합니다.</summary>
     internal sealed class GameRoom
     {
+        // 현재 온라인 대국의 제한시간은 Unity CreateNetwork 설정과 같은 60초입니다.
+        private const float NetworkTurnTime = 60f;
+
         #region Fields
         private readonly Lock _sync = new();
         private readonly IJanggiEngine _engine;
         private GameEndProcessingResult? _engineGameEnd;
+        private TurnData? _completedTurn;
+        private long _lastTickTimestamp;
         private ReadyPlayers _rematchRequestedPlayers = ReadyPlayers.None;
 
         private ReadyPlayers _readyPlayers 
@@ -27,6 +33,9 @@ namespace YuJanggi.Server.Features.Game
         #region Properties
         internal Lock SyncRoot
             => _sync;
+
+        // Handler가 SyncRoot 안에서 연결합니다. 룸별 요청과 알림의 순서를 유지합니다.
+        internal Task PendingOperation { get; set; } = Task.CompletedTask;
 
         public string MatchId { get; private set; } 
             = string.Empty;
@@ -54,13 +63,45 @@ namespace YuJanggi.Server.Features.Game
             _engine = JanggiEngineFactory.CreateEngine(new JanggiOptions
             {
                 ChoFormation = choFormation,
-                HanFormation = hanFormation
+                HanFormation = hanFormation,
+                TurnTime = NetworkTurnTime
             });
             _engine.References.GameEvents.OnTurnCompleted += HandleTurnCompleted;
+            _engine.BindEvents();
         }
         #endregion
 
         #region Public Methods
+        internal ProtocolPlayerTeam? Tick()
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Playing)
+                    return null;
+
+                long now = Stopwatch.GetTimestamp();
+                float deltaTime = (float)Stopwatch.GetElapsedTime(_lastTickTimestamp, now).TotalSeconds;
+                _lastTickTimestamp = now;
+
+                // 요청으로 완료된 턴을 재전송하지 않고 이번 Tick의 결과만 회수합니다.
+                _completedTurn = null;
+                try
+                {
+                    _engine.Tick(deltaTime);
+                    return _completedTurn?.ActingTeam switch
+                    {
+                        PlayerTeam.Cho => ProtocolPlayerTeam.Cho,
+                        PlayerTeam.Han => ProtocolPlayerTeam.Han,
+                        _ => null
+                    };
+                }
+                finally
+                {
+                    _completedTurn = null;
+                }
+            }
+        }
+
         public void Initialize(string matchId, IClientSession choPlayer, IClientSession hanPlayer)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(matchId);
@@ -145,7 +186,13 @@ namespace YuJanggi.Server.Features.Game
         public void Close()
         {
             lock (_sync)
+            {
                 _state = GameRoomState.Closed;
+                _engine.EndEngine();
+                _engine.UnBindEvents();
+                _engine.References.GameEvents.OnTurnCompleted -= HandleTurnCompleted;
+                _completedTurn = null;
+            }
         }
         internal GameEndProcessingResult ProcessGiveUp(ProtocolPlayerTeam requester)
         {
@@ -225,6 +272,8 @@ namespace YuJanggi.Server.Features.Game
                     throw new InvalidOperationException("게임 Engine을 시작할 수 없습니다.");
 
                 _engineGameEnd = null;
+                _completedTurn = null;
+                _lastTickTimestamp = Stopwatch.GetTimestamp();
                 _state = GameRoomState.Playing;
             }
         }
@@ -239,7 +288,14 @@ namespace YuJanggi.Server.Features.Game
         {
             lock (_sync)
             {
-                if (_state != GameRoomState.Playing || _engineGameEnd is not null ||
+                if (_state != GameRoomState.Playing)
+                    return;
+
+                _completedTurn = data;
+                // 다음 Tick에 이전 턴의 경과 시간을 넘기지 않습니다.
+                _lastTickTimestamp = Stopwatch.GetTimestamp();
+
+                if (_engineGameEnd is not null ||
                     data.GameResult is not { } gameResult)
                     return;
 

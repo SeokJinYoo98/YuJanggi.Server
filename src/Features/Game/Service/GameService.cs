@@ -17,6 +17,9 @@ namespace YuJanggi.Server.Features.Game
     }
     internal sealed record GameStartProcessingResult(
         DateTimeOffset StartedAt, IReadOnlyList<IClientSession> Targets);
+    internal sealed record GameTickProcessingResult(
+        ProtocolPlayerTeam Team, IReadOnlyList<IClientSession> Targets,
+        GameEndProcessingResult? GameEnd);
     internal sealed record GameEndProcessingResult(
         GameRequestResult Result, bool IsGameEnded, string MatchId, ProtocolPlayerTeam Winner,
         int TotalMoves, IReadOnlyList<IClientSession> Targets,
@@ -37,6 +40,24 @@ namespace YuJanggi.Server.Features.Game
         #endregion
 
         #region Public Methods
+        internal GameRoom? FindRoomBySession(IClientSession session)
+            => _gameRoomManager.GetRoomBySession(session);
+
+        internal GameTickProcessingResult? ProcessTick(GameRoom room)
+        {
+            lock (room.SyncRoot)
+            {
+                if (room.Tick() is not { } team)
+                    return null;
+
+                var targets = GetTargets(room);
+                var gameEnd = room.EngineGameEnd is { } ended
+                    ? ended with { Targets = targets }
+                    : null;
+                return new GameTickProcessingResult(team, targets, gameEnd);
+            }
+        }
+
         public (
             GameRequestResult Result,
             bool IsConfirmed,

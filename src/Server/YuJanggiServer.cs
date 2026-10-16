@@ -13,6 +13,7 @@ namespace YuJanggi.Server
     using Features.Login;
     using Features.Lobby;
     using Features.Game;
+    using Features.Game.State;
 
     /// <summary>
     /// 유장기 서버의 실행 및 클라이언트 연결 수락을 관리합니다.
@@ -22,6 +23,7 @@ namespace YuJanggi.Server
         #region Constants
 
         private const int Port = 7777;
+        private static readonly TimeSpan GameTickInterval = TimeSpan.FromMilliseconds(50);
         private static readonly IPAddress Address = IPAddress.Any;
 
         #endregion
@@ -109,6 +111,7 @@ namespace YuJanggi.Server
                 "YuJanggi Server started.");
             NetworkView.LogPackageVersions();
 
+            Task gameLoopTask = RunGameLoopAsync(shutdown);
             try
             {
                 while (!cancellationToken.IsCancellationRequested)
@@ -142,7 +145,7 @@ namespace YuJanggi.Server
                 Task[] processingTasks = _connectionService.ClearSessions();
                 try
                 {
-                    await Task.WhenAll(processingTasks);
+                    await Task.WhenAll(processingTasks.Append(gameLoopTask));
                 }
                 finally
                 {
@@ -158,6 +161,71 @@ namespace YuJanggi.Server
         #endregion
 
         #region Private Methods
+
+        private async Task RunGameLoopAsync(CancellationTokenSource shutdown)
+        {
+            var token = shutdown.Token;
+            using var timer = new PeriodicTimer(GameTickInterval);
+            var pendingTicks = new Dictionary<GameRoom, Task>();
+            try
+            {
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    foreach (var completed in pendingTicks.Where(entry => entry.Value.IsCompleted).ToArray())
+                    {
+                        await completed.Value;
+                        pendingTicks.Remove(completed.Key);
+                    }
+
+                    // 느린 룸의 송신이 다른 룸의 시간 진행을 막지 않도록 합니다.
+                    // 룸마다 아직 끝나지 않은 Tick 작업은 하나만 유지합니다.
+                    foreach (var room in _gameRoomManager.GetRoomsSnapshot())
+                    {
+                        if (room.State != GameRoomState.Playing || pendingTicks.ContainsKey(room))
+                            continue;
+
+                        pendingTicks.Add(room, TickRoomAsync(room, token));
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                // 서버 종료 시 Tick과 전송 대기도 함께 종료합니다.
+            }
+            catch
+            {
+                // 시간 진행 루프가 중단된 상태로 연결 수락만 계속하지 않습니다.
+                shutdown.Cancel();
+                throw;
+            }
+            finally
+            {
+                try
+                {
+                    await Task.WhenAll(pendingTicks.Values);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    // 이미 예약한 Tick·송신까지 완료된 후 서버 정리로 돌아갑니다.
+                }
+            }
+        }
+
+        private async Task TickRoomAsync(GameRoom room, CancellationToken token)
+        {
+            try
+            {
+                await _gameHandler.TickAsync(room, token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                NetworkView.Write(NetworkMessageType.Error, exception.ToString(), room.MatchId);
+            }
+        }
 
         private async Task HandleClientAsync(
             IClientSession session,
