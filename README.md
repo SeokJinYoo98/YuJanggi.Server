@@ -1,4 +1,6 @@
-<h3 align="center">Tech Stack</h3>
+# YuJanggi.Server
+
+## Tech Stack
 
 <p align="center">
   <img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/csharp/csharp-original.svg" height="40" alt="C#" title="C#" />
@@ -9,114 +11,108 @@
 </p>
 
 <p align="center">
-  .NET 10 · TCP / NetworkStream · MSTest<br />
-  AWS OIDC · SSH / SCP · systemd
+  C# / .NET 10 · TCP / NetworkStream · async / await · CancellationToken · Lock<br />
+  Length-Prefixed JSON · NuGet · MSTest<br />
+  CI/CD · GitHub Actions · AWS EC2 / Ubuntu · OIDC · SSH / SCP · systemd
 </p>
 
+## 서버 소개
 
-# YuJanggi.Server
+AWS EC2의 Ubuntu 환경에 배포하는 .NET 10 기반 1:1 장기 TCP 서버입니다.<br />
+Unity 클라이언트의 연결·매칭·대국 메시지 중계·리매치·채팅을 처리합니다.
 
-.NET 10 기반 1:1 장기 네트워크 서버입니다. TCP 연결·매칭·게임 메시지 처리를 담당하며, <br>
-GitHub Actions에서 검증한 Linux 실행 결과물을 AWS EC2에 배포합니다.
+## 주요 기능
 
-## Highlights
+| 기능 | 구현 내용 |
+| --- | --- |
+| 연결 · Handshake | 비동기 TCP 송수신 · 세션 관리 · Engine / Protocol 버전 확인 |
+| 매칭 · 포진 | FIFO 매칭 · 매칭 취소 · 참가자 확정 · 양측 포진 제출 |
+| 대국 진행 | 양측 게임 씬 준비 후 시작 · 이동 Response / Event 전달 |
+| 대국 종료 | 기권 처리 · 양측 종료 제출 일치 확인 · 종료 Event 전달 |
+| 한 수 쉼 · 리매치 | 한 수 쉼 요청 처리 · 양측 리매치 요청 후 확정 Event 전달 |
+| 채팅 | 방 참가자에게 메시지 전달 · 공백·20자 초과 검사 · 세션별 1초 전송 간격 제한 |
 
-- Session·매칭·GameRoom의 상태와 생명주기 관리
-- Login / Lobby / Game을 기능 흐름 단위로 구성
-- 공통 계약·연결 관리·TCP 송수신 책임 분리
-- PR 검증과 Tag 기반 Publish·EC2 배포 자동화
+## 로컬 실행 방법
 
-## Getting Started
+.NET 10 SDK와 GitHub Packages 읽기 인증을 준비합니다.<br />
+[NuGet.Config](NuGet.Config)은 Engine / Protocol 패키지를 GitHub Packages에서 가져옵니다.
 
-.NET 10 SDK와 GitHub Packages 읽기 인증을 준비합니다.
-
-[NuGet.Config](NuGet.Config)은 Protocol / Engine 패키지를 GitHub Packages에서 가져옵니다.<br>
-로컬 인증은 `NuGetPackageSourceCredentials_github` 환경변수 등 사용하는 환경에서 설정하며, 저장소 루트에서 실행합니다.
+로컬 인증은 `NuGetPackageSourceCredentials_github` 환경변수 등 사용하는 환경에 설정한 뒤, 저장소 루트에서 실행합니다.
 
 ```bash
 dotnet restore YuJanggi.Server.slnx --configfile NuGet.Config
 dotnet run --project src/YuJanggi.Server.csproj
 ```
 
-Unity 클라이언트를 서버의 TCP **7777**에 연결합니다.<br>콘솔의 `Rooms`는 Room과 참가자를 조회하고, 시작 로그는 Engine / Protocol 버전을 표시합니다.
+Unity 클라이언트를 TCP **7777**에 연결합니다.<br />
+시작 로그에서 Engine / Protocol 버전을 확인하고, 콘솔의 `Rooms` 명령으로 방과 참가자를 조회합니다.
 
-EC2에서는 .NET 10 런타임과 `yujanggi` systemd 서비스를 사용합니다.<br>
-[서비스 파일 예시](docs/deploy/systemd/yujanggi.service)의 계정·DLL·배포 경로를 실제 환경에 맞게 설정합니다.<br>
-상태와 로그는 `systemctl status yujanggi`, `journalctl -u yujanggi`로 확인합니다.
+## 서버 구조
 
-## Features
+기능별로 메시지 처리, 유스케이스 판단, 컬렉션 관리와 방 상태의 책임을 구분합니다.
 
-- **Login**: Engine / Protocol 버전 Handshake. 사용자 인증을 추가할 별도 영역으로 구성
-- **Lobby**: FIFO 매칭·취소·참가자 확정, 양측 포진 제출 후 GameRoom 생성과 GameReady 알림
-- **Game**: 양측 씬 준비 후 시작, 이동 Response / Event 전달, 양측 종료 제출 일치 확인과 Room 정리
-
-현재 이동은 요청을 승인해 참가자에게 전달합니다.<br>
-Engine 기반 서버 이동 검증·자체 결과 계산과 실제 사용자 인증은 아직 구현하지 않았습니다.
-
-## Architecture
-
-Features는 `Handler → Service → Manager → Domain Object`의 책임 구분을 따릅니다. <br>
-공통 상속 계층으로 강제하지 않으며, 각 기능에서 실제 필요한 역할을 구현합니다.
-
-| 계층 | 책임 |
+| 구성 요소 | 역할 |
 | --- | --- |
-| Handler | Protocol 요청 검증, Service 호출, Response / Event 생성·전송 |
-| Service | 유스케이스 판단과 상태 변경·도메인 전환 조정 |
-| Manager | 컬렉션 생성·등록·조회·제거와 동시성 보호 |
-| Domain Object | MatchState / GameRoom 등 상태의 원본과 무결성 유지 |
+| Handler | 요청 검증 · Service 호출 · Response / Event 생성·전송 |
+| Service | 요청 수락 판단 · 상태 변경 · 기능 흐름 조정 |
+| Manager | 세션·매칭·방 컬렉션 생성·조회·제거와 동시성 보호 |
+| Domain Object | MatchState / GameRoom의 상태와 전환 조건 관리 |
+| Core | Handler·Session 공통 계약과 요청 검증 |
+| Transport / Connection | TCP 송수신과 세션 생명주기 관리 |
+| Server | 객체 조립 · 메시지 라우팅 · 연결 종료와 서버 종료 시 정리 |
 
-- **Core**: Handler·Session 계약과 공통 요청 검증
-- **Transport / Connection**: TCP byte 송수신과 Session 생명주기를 분리
-- **Server**: 도메인 조립·라우팅과 Disconnect / shutdown 정리 순서 조정
+Login / Lobby / Game 단위로 구성하며, 채팅은 Game 내부의 `ChatHandler` / `ChatService`로 분리합니다.<br />
+클래스에 공통 상속 계층을 강제하지 않고 각 기능에 필요한 역할만 구현합니다.
 
-Lobby는 양측 포진을 모아 GameRoom을 한 번 생성합니다.<br>
-생성 이후 Room 생명주기는 Game이 담당합니다. <br>
-정상 GameEnd는 Response → Event → Room 종료·제거 순서이며, 종료 확정 후 전송이 실패해도 `finally`에서 Room을 정리합니다.
+## 세션 · 매칭 · GameRoom 생명주기
 
-## CI/CD
+1. **접속**: 세션을 등록하고 버전 Handshake를 처리합니다.
+2. **매칭**: Lobby에서 상대를 찾고 양측 포진을 모아 GameRoom을 생성합니다.
+3. **준비 · 시작**: `WaitingForReady`에서 양쪽 게임 씬 준비를 확인한 뒤 `Playing`으로 전환합니다.
+4. **종료 · 리매치**: 종료 시 `Ended` 상태로 방을 유지합니다. 양쪽이 리매치를 요청하면 준비 상태를 초기화하고 `WaitingForReady`로 돌아갑니다.
+5. **연결 종료**: 세션·매칭 상태와 참가 중인 방을 정리하고, 채팅 전송 간격 기록도 제거합니다.
 
-- **[Server CI](.github/workflows/ci.yml)**: `main` / `release/**` 대상 PR → Restore → Release Build → Test
-- **[Server Release](.github/workflows/release.yml)**: `v*.*.*` Tag Push → 검증 → Linux Publish → `yujanggi-server-linux-x64` Artifact 업로드
-- **[Server CD](.github/workflows/cd.yml)**: 동일 Repository의 성공한 Release Push 실행 → 해당 Run ID의 Artifact 다운로드 → EC2 배포
+방 컬렉션 접근과 개별 GameRoom 상태 변경은 각각 Lock으로 보호합니다.<br />
+정상 종료 결과는 현재 양측 클라이언트의 제출 일치를 확인하며, 서버 Engine이 독립적으로 계산한 결과는 아닙니다.
 
-[PublishServer.sh](scripts/PublishServer.sh)는 `linux-x64` / framework-dependent 결과물을 `artifacts/publish/linux-x64`에 생성합니다.
+## CI/CD · AWS EC2 배포
 
+| 단계 | GitHub Actions 구성 |
+| --- | --- |
+| [CI](.github/workflows/ci.yml) | main / release 대상 PR에서 Restore → Release Build → MSTest |
+| [Release](.github/workflows/release.yml) | 버전 Tag에서 검증 → Linux x64 Publish → 실행 Artifact 업로드 |
+| [CD](.github/workflows/cd.yml) | 성공한 Release Run의 Artifact를 받아 AWS EC2에 배포 |
 
-Release는 Artifact 생성만 담당하며 GitHub Release를 만들지 않으며, <br>
-CI / Release의 NuGet 인증은 `GITHUB_TOKEN`을 사용합니다.<br>
-그리고 CD는 GitHub OIDC로 AWS Role을 사용하고 Runner IPv4 `/32`에만 SSH를 임시 허용합니다.
+- **실행 결과물**: [PublishServer.sh](scripts/PublishServer.sh)가 framework-dependent Linux x64 결과물을 생성합니다. EC2에는 .NET 10 런타임이 필요합니다.
+- **AWS 인증**: GitHub OIDC로 AWS Role을 사용하고, Runner IPv4 `/32`에만 SSH를 임시 허용합니다.
+- **서비스 갱신**: [DeployServer.sh](scripts/DeployServer.sh)가 Host Key를 검증하며 SSH / SCP로 배포하고, `yujanggi` systemd 서비스를 재시작·확인합니다.
+- **후처리**: 생성한 Security Group Rule ID로 임시 SSH 규칙을 제거합니다. CD에서 Build / Test / Publish를 반복하지 않습니다.
 
+[Ubuntu EC2 운영 문서](docs/systemd-ec2-ubuntu.md) · [systemd 서비스 예시](docs/deploy/systemd/yujanggi.service)
 
-[DeployServer.sh](scripts/DeployServer.sh)가 Host Key 검증을 유지한 SSH / SCP 배포와 `yujanggi` 재시작·active 확인을 수행합니다.
-
-CD는 Build / Test / Publish를 다시 실행하지 않습니다.<br>
-임시 SSH 규칙은 생성한 Rule ID로 성공·실패 후 정리합니다.<br>
-Runner 강제 종료 시 정리가 보장되지는 않으며, 배포 실패 시 자동 롤백은 구현하지 않았습니다.
-
-MSTest는 Connection / Lobby / Game별로 연결 정리, 매칭·포진·전송 순서, 게임 준비·종료·Room 정리를 검증합니다. <br>
-Move 테스트는 현재 메시지 전달 흐름을 검증합니다.
-
-## Project Structure
-
-```text
-src/
-├─ Core/                  # 서버 공통 계약과 검증
-├─ Transport/Tcp/         # 실제 TCP 송수신
-├─ Connection/            # Session 생명주기
-├─ Features/
-│  ├─ Login/              # Handshake와 인증 연결 준비
-│  ├─ Lobby/              # 매칭과 게임 시작 준비
-│  └─ Game/               # 게임 메시지와 Room 상태
-├─ Server/                # 실행·라우팅·도메인 조정
-└─ View/                  # 콘솔 출력
-YuJanggi.Server.Tests/     # Connection / Lobby / Game / TestSupport
-.github/workflows/        # CI / Release / CD
-scripts/                  # Linux Publish와 SSH 배포
-docs/                     # systemd 문서와 서비스 예시
+```bash
+systemctl status yujanggi
+journalctl -u yujanggi
 ```
 
-## Related Projects
+## 테스트 · 현재 구현 범위
 
-- [YuJanggi.Unity](https://github.com/SeokJinYoo98/YuJanggi.Unity) — 게임 입력·화면과 Client 네트워크 흐름
-- [YuJanggi.Protocol](https://github.com/SeokJinYoo98/YuJanggi.Protocol) — 공유 메시지 계약, JSON 직렬화와 Framing
-- [YuJanggi.Engine](https://github.com/SeokJinYoo98/YuJanggi.Engine) — 장기 규칙·게임 상태. 서버는 현재 공용 타입과 버전을 사용
+[YuJanggi.Server.Tests](YuJanggi.Server.Tests)에 Connection / Lobby / Game 단위 MSTest를 작성했습니다.
+
+- **Connection**: 세션 등록·해제와 연결 정리
+- **Lobby**: 매칭·취소·포진과 게임 준비 흐름
+- **Game**: 이동 메시지 전달, 대국 준비·종료와 리매치 상태 전환
+
+현재 이동 테스트는 메시지 전달 흐름을 대상으로 하며, 장기 규칙의 서버 권위 검증을 의미하지 않습니다.
+
+**구현**: 연결·버전 확인, 매칭·포진, 게임 시작·메시지 중계, 기권·한 수 쉼·리매치, 채팅과 AWS EC2 배포 자동화.
+
+**남은 과제**: Engine 기반 이동·최종 결과 검증, 사용자 인증·DB, 이탈 알림·재접속 복구, 채팅 검증 테스트 확장.
+
+배포 실패 시 자동 롤백과 Runner 강제 종료 시 임시 SSH 규칙 정리는 보완할 영역입니다.
+
+## 관련 저장소 · 문서
+
+- [YuJanggi.Unity](https://github.com/SeokJinYoo98/YuJanggi.Unity) — 게임 입력·화면·클라이언트 네트워크 흐름
+- [YuJanggi.Protocol](https://github.com/SeokJinYoo98/YuJanggi.Protocol) — 공용 메시지 계약·직렬화·패킷 프레이밍
+- [YuJanggi.Engine](https://github.com/SeokJinYoo98/YuJanggi.Engine) — Unity 독립 장기 규칙·게임 상태. 서버는 현재 공용 타입과 버전을 사용
