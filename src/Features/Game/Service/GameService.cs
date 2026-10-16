@@ -11,7 +11,7 @@ namespace YuJanggi.Server.Features.Game
         ProtocolPlayerTeam Team, byte FromX, byte FromZ, byte ToX, byte ToZ);
     internal sealed record MoveProcessingResult(
         MovePieceResult Result, ConfirmedMove? ConfirmedMove,
-        IReadOnlyList<IClientSession> Targets);
+        IReadOnlyList<IClientSession> Targets, bool HasGameResult = false);
     internal sealed record GameStartProcessingResult(
         DateTimeOffset StartedAt, IReadOnlyList<IClientSession> Targets);
     internal sealed record GameEndSubmission(ProtocolPlayerTeam Winner, int TotalMoves);
@@ -72,6 +72,10 @@ namespace YuJanggi.Server.Features.Game
                 IClientSession session,
                 ProtocolPlayerTeam requester)
         {
+            ArgumentNullException.ThrowIfNull(session);
+            if (!session.IsHandshakeCompleted)
+                return (GameRequestResult.Failed, Array.Empty<IClientSession>());
+
             var room = _gameRoomManager.GetRoomBySession(session);
             if (room is null)
                 return (GameRequestResult.Failed, Array.Empty<IClientSession>());
@@ -88,7 +92,12 @@ namespace YuJanggi.Server.Features.Game
                 if (requester != actualTeam)
                     return (GameRequestResult.Mismatch, Array.Empty<IClientSession>());
 
-                return (GameRequestResult.Accepted, GetTargets(room));
+                var result = room.ProcessPassTurn(requester);
+
+                return (
+                    result,
+                    result == GameRequestResult.Accepted
+                        ? GetTargets(room) : Array.Empty<IClientSession>());
             }
         }
         public GameEndProcessingResult ProcessGiveUp(
@@ -193,11 +202,28 @@ namespace YuJanggi.Server.Features.Game
             IClientSession session,
             MovePieceRequest request)
         {
+            ArgumentNullException.ThrowIfNull(session);
             ArgumentNullException.ThrowIfNull(request);
-            var room = GetRoomBySession(session);
+            if (!session.IsHandshakeCompleted)
+                return new(MovePieceResult.IllegalMove, null, Array.Empty<IClientSession>());
+
+            var room = _gameRoomManager.GetRoomBySession(session);
+            if (room is null)
+                return new(MovePieceResult.IllegalMove, null, Array.Empty<IClientSession>());
+
             lock (room.SyncRoot)
             {
-                var result = ValidateMove(request);
+                if (!room.Contains(session) || room.State != GameRoomState.Playing)
+                    return new(MovePieceResult.IllegalMove, null, Array.Empty<IClientSession>());
+
+                var actualTeam = room.ChoPlayer?.ClientId == session.ClientId
+                    ? ProtocolPlayerTeam.Cho
+                    : ProtocolPlayerTeam.Han;
+
+                if (request.Team != actualTeam)
+                    return new(MovePieceResult.IllegalMove, null, Array.Empty<IClientSession>());
+
+                var result = room.ProcessMove(request);
 
                 var confirmedMove = result == MovePieceResult.Accepted
                     ? new ConfirmedMove(request.Team, request.FromX, request.FromZ,
@@ -208,7 +234,8 @@ namespace YuJanggi.Server.Features.Game
                     result,
                     confirmedMove,
                     result == MovePieceResult.Accepted
-                        ? GetTargets(room) : Array.Empty<IClientSession>());
+                        ? GetTargets(room) : Array.Empty<IClientSession>(),
+                    room.HasEngineGameResult);
             }
         }
 
@@ -250,13 +277,6 @@ namespace YuJanggi.Server.Features.Game
         #region Private Methods
         private static GameEndProcessingResult GameEndFailure(GameRequestResult result)
             => new(result, false, string.Empty, ProtocolPlayerTeam.None, 0, Array.Empty<IClientSession>());
-        private static MovePieceResult ValidateMove(
-            MovePieceRequest request)
-        {
-            // 기존 임시 동작을 유지합니다. Engine 기반 규칙 검증은 아직 구현하지 않았습니다.
-            return MovePieceResult.Accepted;
-        }
-
         private static IReadOnlyList<IClientSession> GetTargets(GameRoom room)
             => Array.AsReadOnly(new[]
             {
