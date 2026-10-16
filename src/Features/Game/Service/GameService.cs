@@ -11,13 +11,17 @@ namespace YuJanggi.Server.Features.Game
         ProtocolPlayerTeam Team, byte FromX, byte FromZ, byte ToX, byte ToZ);
     internal sealed record MoveProcessingResult(
         MovePieceResult Result, ConfirmedMove? ConfirmedMove,
-        IReadOnlyList<IClientSession> Targets, bool HasGameResult = false);
+        IReadOnlyList<IClientSession> Targets, GameEndProcessingResult? GameEnd = null)
+    {
+        public bool HasGameResult => GameEnd is not null;
+    }
     internal sealed record GameStartProcessingResult(
         DateTimeOffset StartedAt, IReadOnlyList<IClientSession> Targets);
     internal sealed record GameEndSubmission(ProtocolPlayerTeam Winner, int TotalMoves);
     internal sealed record GameEndProcessingResult(
         GameRequestResult Result, bool IsGameEnded, string MatchId, ProtocolPlayerTeam Winner,
-        int TotalMoves, IReadOnlyList<IClientSession> Targets);
+        int TotalMoves, IReadOnlyList<IClientSession> Targets,
+        ProtocolGameEndReason EndReason = ProtocolGameEndReason.CheckMate);
 
     /// <summary>게임룸 조회, 요청 판단 및 대국 상태 전환을 담당합니다.</summary>
     internal sealed class GameService
@@ -230,12 +234,17 @@ namespace YuJanggi.Server.Features.Game
                         request.ToX, request.ToZ)
                     : null;
 
+                var targets = result == MovePieceResult.Accepted
+                    ? GetTargets(room) : Array.Empty<IClientSession>();
+                var gameEnd = result == MovePieceResult.Accepted && room.EngineGameEnd is { } ended
+                    ? ended with { Targets = targets }
+                    : null;
+
                 return new MoveProcessingResult(
                     result,
                     confirmedMove,
-                    result == MovePieceResult.Accepted
-                        ? GetTargets(room) : Array.Empty<IClientSession>(),
-                    room.HasEngineGameResult);
+                    targets,
+                    gameEnd);
             }
         }
 

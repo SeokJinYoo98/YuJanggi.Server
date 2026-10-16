@@ -201,21 +201,7 @@ namespace YuJanggi.Server.Features.Game
             if (!result.IsGameEnded)
                 return;
 
-            var gameEndedEvent = new GameEndedEvent
-            {
-                EndReason   = ProtocolGameEndReason.CheckMate,
-                Winner      = result.Winner,
-                TotalMoves  = result.TotalMoves
-            };
-
-            var ended = ServerMessageFactory.CreateEvent(
-                ServerMessageType.GameEndedEvent,
-                gameEndedEvent);
-
-            await BroadcastAsync(
-                result.Targets,
-                ended,
-                cancellationToken);
+            await BroadcastGameEndedAsync(result, cancellationToken);
 
             // 종료된 방은 재대결을 위해 유지하며, 연결 종료 시 기존 경로에서 정리합니다.
             // TODO: 응답 전송 실패 시에도 상대에게 종료 Event를 전달할지 정책을 정합니다.
@@ -249,6 +235,9 @@ namespace YuJanggi.Server.Features.Game
 
                     await BroadcastAsync(result.Targets, moved, cancellationToken);
 
+                    if (result.GameEnd is { } gameEnd)
+                        await BroadcastGameEndedAsync(gameEnd, cancellationToken);
+
                     break;
 
                 default:
@@ -257,6 +246,22 @@ namespace YuJanggi.Server.Features.Game
 
 
         }
+        private static Task BroadcastGameEndedAsync(
+            GameEndProcessingResult result,
+            CancellationToken cancellationToken)
+        {
+            var ended = ServerMessageFactory.CreateEvent(
+                ServerMessageType.GameEndedEvent,
+                new GameEndedEvent
+                {
+                    EndReason = result.EndReason,
+                    Winner = result.Winner,
+                    TotalMoves = result.TotalMoves
+                });
+
+            return BroadcastAsync(result.Targets, ended, cancellationToken);
+        }
+
         private static TurnCompletedEvent ToTurnCompletedEvent(
             ConfirmedMove move)
             => new()

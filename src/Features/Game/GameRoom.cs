@@ -15,7 +15,7 @@ namespace YuJanggi.Server.Features.Game
         #region Fields
         private readonly Lock _sync = new();
         private readonly IJanggiEngine _engine;
-        private bool _hasEngineGameResult;
+        private GameEndProcessingResult? _engineGameEnd;
         private GameEndSubmittedPlayers _gameEndSubmittedPlayers = GameEndSubmittedPlayers.None;
         private GameEndSubmission? _choGameEndSubmission;
         private GameEndSubmission? _hanGameEndSubmission;
@@ -38,7 +38,8 @@ namespace YuJanggi.Server.Features.Game
         public IClientSession? HanPlayer { get; private set; }
 
         public GameRoomState State { get { lock (_sync) return _state; } }
-        public bool HasEngineGameResult { get { lock (_sync) return _hasEngineGameResult; } }
+        public bool HasEngineGameResult { get { lock (_sync) return _engineGameEnd is not null; } }
+        internal GameEndProcessingResult? EngineGameEnd { get { lock (_sync) return _engineGameEnd; } }
 
         public bool ChoReady { get { lock (_sync) return (_readyPlayers & ReadyPlayers.Cho) != 0; } }
         public bool HanReady { get { lock (_sync) return (_readyPlayers & ReadyPlayers.Han) != 0; } }
@@ -103,7 +104,7 @@ namespace YuJanggi.Server.Features.Game
         {
             lock (_sync)
             {
-                if (_state != GameRoomState.Playing || _engine.References.Turn.IsEnd)
+                if (_state != GameRoomState.Playing)
                     return MovePieceResult.IllegalMove;
 
                 var team = request.Team switch
@@ -129,7 +130,7 @@ namespace YuJanggi.Server.Features.Game
         {
             lock (_sync)
             {
-                if (_state != GameRoomState.Playing || _engine.References.Turn.IsEnd)
+                if (_state != GameRoomState.Playing)
                     return GameRequestResult.Failed;
 
                 var team = requester switch
@@ -267,7 +268,7 @@ namespace YuJanggi.Server.Features.Game
                 if (!_engine.InitEngine() || !_engine.StartEngine())
                     throw new InvalidOperationException("게임 Engine을 시작할 수 없습니다.");
 
-                _hasEngineGameResult = false;
+                _engineGameEnd = null;
                 _state = GameRoomState.Playing;
             }
         }
@@ -282,8 +283,35 @@ namespace YuJanggi.Server.Features.Game
         {
             lock (_sync)
             {
-                if (data.GameResult.HasValue)
-                    _hasEngineGameResult = true;
+                if (_state != GameRoomState.Playing || _engineGameEnd is not null ||
+                    data.GameResult is not { } gameResult)
+                    return;
+
+                var winner = gameResult.Winner switch
+                {
+                    PlayerTeam.Cho => ProtocolPlayerTeam.Cho,
+                    PlayerTeam.Han => ProtocolPlayerTeam.Han,
+                    PlayerTeam.None => ProtocolPlayerTeam.None,
+                    _ => throw new InvalidOperationException("지원하지 않는 Engine 승자입니다.")
+                };
+                var endReason = gameResult.Type switch
+                {
+                    GameResult.Draw => ProtocolGameEndReason.Draw,
+                    GameResult.CheckMate => ProtocolGameEndReason.CheckMate,
+                    GameResult.GiveUp => ProtocolGameEndReason.GiveUp,
+                    GameResult.Score => ProtocolGameEndReason.Score,
+                    _ => throw new InvalidOperationException("지원하지 않는 Engine 종료 사유입니다.")
+                };
+
+                _engineGameEnd = new GameEndProcessingResult(
+                    GameRequestResult.Accepted,
+                    true,
+                    MatchId,
+                    winner,
+                    _engine.References.ReadOnlyRecord.Count,
+                    Array.Empty<IClientSession>(),
+                    endReason);
+                _state = GameRoomState.Ended;
             }
         }
         #endregion
