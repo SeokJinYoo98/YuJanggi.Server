@@ -9,17 +9,25 @@ namespace YuJanggi.Server.Features.Game
 
     internal sealed record ConfirmedMove(
         ProtocolPlayerTeam Team, byte FromX, byte FromZ, byte ToX, byte ToZ);
+    internal sealed record TurnStateSnapshot(
+        int TurnNumber, ProtocolPlayerTeam Team,
+        DateTimeOffset UpdatedAt, DateTimeOffset? DeadlineAt);
     internal sealed record MoveProcessingResult(
         MovePieceResult Result, ConfirmedMove? ConfirmedMove,
-        IReadOnlyList<IClientSession> Targets, GameEndProcessingResult? GameEnd = null)
+        IReadOnlyList<IClientSession> Targets, GameEndProcessingResult? GameEnd = null,
+        TurnStateSnapshot? NextTurn = null)
     {
         public bool HasGameResult => GameEnd is not null;
     }
     internal sealed record GameStartProcessingResult(
-        DateTimeOffset StartedAt, IReadOnlyList<IClientSession> Targets);
+        DateTimeOffset StartedAt, IReadOnlyList<IClientSession> Targets,
+        float TurnTimeSeconds, TurnStateSnapshot Turn);
+    internal sealed record PassTurnProcessingResult(
+        GameRequestResult Result, IReadOnlyList<IClientSession> Targets,
+        TurnStateSnapshot? NextTurn = null);
     internal sealed record GameTickProcessingResult(
         ProtocolPlayerTeam Team, IReadOnlyList<IClientSession> Targets,
-        GameEndProcessingResult? GameEnd);
+        GameEndProcessingResult? GameEnd, TurnStateSnapshot NextTurn);
     internal sealed record GameEndProcessingResult(
         GameRequestResult Result, bool IsGameEnded, string MatchId, ProtocolPlayerTeam Winner,
         int TotalMoves, IReadOnlyList<IClientSession> Targets,
@@ -54,7 +62,7 @@ namespace YuJanggi.Server.Features.Game
                 var gameEnd = room.EngineGameEnd is { } ended
                     ? ended with { Targets = targets }
                     : null;
-                return new GameTickProcessingResult(team, targets, gameEnd);
+                return new GameTickProcessingResult(team, targets, gameEnd, room.GetTurnState());
             }
         }
 
@@ -91,37 +99,38 @@ namespace YuJanggi.Server.Features.Game
             }
         }
 
-        public (GameRequestResult Result, IReadOnlyList<IClientSession> Targets)
-            ProcessPassTurn(
-                IClientSession session,
-                ProtocolPlayerTeam requester)
+        public PassTurnProcessingResult ProcessPassTurn(
+            IClientSession session,
+            GamePlayerRequest request)
         {
             ArgumentNullException.ThrowIfNull(session);
+            ArgumentNullException.ThrowIfNull(request);
             if (!session.IsHandshakeCompleted)
-                return (GameRequestResult.Failed, Array.Empty<IClientSession>());
+                return new(GameRequestResult.Failed, Array.Empty<IClientSession>());
 
             var room = _gameRoomManager.GetRoomBySession(session);
             if (room is null)
-                return (GameRequestResult.Failed, Array.Empty<IClientSession>());
+                return new(GameRequestResult.Failed, Array.Empty<IClientSession>());
 
             lock (room.SyncRoot)
             {
                 if (!room.Contains(session) || room.State != GameRoomState.Playing)
-                    return (GameRequestResult.Failed, Array.Empty<IClientSession>());
+                    return new(GameRequestResult.Failed, Array.Empty<IClientSession>());
 
                 var actualTeam = room.ChoPlayer?.ClientId == session.ClientId
                     ? ProtocolPlayerTeam.Cho
                     : ProtocolPlayerTeam.Han;
 
-                if (requester != actualTeam)
-                    return (GameRequestResult.Mismatch, Array.Empty<IClientSession>());
+                if (request.Requester != actualTeam)
+                    return new(GameRequestResult.Mismatch, Array.Empty<IClientSession>());
 
-                var result = room.ProcessPassTurn(requester);
+                var result = room.ProcessPassTurn(request.Requester, request.TurnNumber);
 
-                return (
+                return new PassTurnProcessingResult(
                     result,
                     result == GameRequestResult.Accepted
-                        ? GetTargets(room) : Array.Empty<IClientSession>());
+                        ? GetTargets(room) : Array.Empty<IClientSession>(),
+                    result == GameRequestResult.Accepted ? room.GetTurnState() : null);
             }
         }
         public GameEndProcessingResult ProcessGiveUp(
@@ -186,9 +195,9 @@ namespace YuJanggi.Server.Features.Game
 
                 room.Start();
 
-                return new GameStartProcessingResult
-                    (DateTimeOffset.UtcNow,
-                    GetTargets(room));
+                var turn = room.GetTurnState();
+                return new GameStartProcessingResult(
+                    turn.UpdatedAt, GetTargets(room), room.TurnTimeSeconds, turn);
             }
         }
         public GameRoom GetRoomBySession(IClientSession session)
@@ -237,7 +246,8 @@ namespace YuJanggi.Server.Features.Game
                     result,
                     confirmedMove,
                     targets,
-                    gameEnd);
+                    gameEnd,
+                    result == MovePieceResult.Accepted ? room.GetTurnState() : null);
             }
         }
 

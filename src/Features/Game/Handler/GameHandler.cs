@@ -4,6 +4,7 @@ namespace YuJanggi.Server.Features.Game
 {
     using Protocol.InGame;
     using Protocol.Messages;
+    using Protocol.Matching;
 
     using Core.Messaging;
     using Core.Sessions;
@@ -131,11 +132,8 @@ namespace YuJanggi.Server.Features.Game
 
             var completed = ServerMessageFactory.CreateEvent(
                 ServerMessageType.TurnCompletedEvent,
-                new TurnCompletedEvent
-                {
-                    Team = result.Team,
-                    Action = ProtocolTurnAction.Pass
-                });
+                ToTurnCompletedEvent(result.Team, ProtocolTurnAction.Pass,
+                    result.NextTurn, ProtocolPassReason.Timeout));
 
             await BroadcastAsync(result.Targets, completed, cancellationToken);
             if (result.GameEnd is { } gameEnd)
@@ -149,7 +147,7 @@ namespace YuJanggi.Server.Features.Game
         {
             var requestId = RequestMessageValidation.RequireRequestId(message, "PassTurn");
             var request = message.GetPayload<GamePlayerRequest>();
-            var result = _gameService.ProcessPassTurn(session, request.Requester);
+            var result = _gameService.ProcessPassTurn(session, request);
 
             var response = ServerMessageFactory.CreateResponse(
                 ServerMessageType.PassTurnResponse,
@@ -166,11 +164,9 @@ namespace YuJanggi.Server.Features.Game
 
             var completed = ServerMessageFactory.CreateEvent(
                 ServerMessageType.TurnCompletedEvent,
-                new TurnCompletedEvent
-                {
-                    Team = request.Requester,
-                    Action = ProtocolTurnAction.Pass
-                });
+                ToTurnCompletedEvent(request.Requester, ProtocolTurnAction.Pass,
+                    result.NextTurn ?? throw new InvalidOperationException("승인된 턴 정보가 없습니다."),
+                    ProtocolPassReason.UserRequest));
 
             await BroadcastAsync(result.Targets, completed, token);
         }
@@ -280,8 +276,11 @@ namespace YuJanggi.Server.Features.Game
             switch (result.Result)
             {
                 case MovePieceResult.Accepted:
-                    var turnCompletedEvent = ToTurnCompletedEvent(result.ConfirmedMove
-                        ?? throw new InvalidOperationException("승인된 이동 데이터가 없습니다."));
+                    var move = result.ConfirmedMove
+                        ?? throw new InvalidOperationException("승인된 이동 데이터가 없습니다.");
+                    var turnCompletedEvent = ToTurnCompletedEvent(move.Team, ProtocolTurnAction.Move,
+                        result.NextTurn ?? throw new InvalidOperationException("승인된 턴 정보가 없습니다."),
+                        move: move);
 
                     var moved = ServerMessageFactory.CreateEvent(
                     ServerMessageType.TurnCompletedEvent,
@@ -317,15 +316,24 @@ namespace YuJanggi.Server.Features.Game
         }
 
         private static TurnCompletedEvent ToTurnCompletedEvent(
-            ConfirmedMove move)
+            ProtocolPlayerTeam team,
+            ProtocolTurnAction action,
+            TurnStateSnapshot nextTurn,
+            ProtocolPassReason passReason = ProtocolPassReason.None,
+            ConfirmedMove? move = null)
             => new()
             {
-                Team    = move.Team,
-                Action  = ProtocolTurnAction.Move,
-                FromX   = move.FromX,
-                FromZ   = move.FromZ,
-                ToX     = move.ToX,
-                ToZ     = move.ToZ
+                Team = team,
+                Action = action,
+                TurnNumber = nextTurn.TurnNumber - 1,
+                CompletedAt = nextTurn.UpdatedAt,
+                NextTeam = nextTurn.Team,
+                NextTurnDeadlineAt = nextTurn.DeadlineAt,
+                PassReason = passReason,
+                FromX = move?.FromX ?? 0,
+                FromZ = move?.FromZ ?? 0,
+                ToX = move?.ToX ?? 0,
+                ToZ = move?.ToZ ?? 0
             };
 
         private async Task HandleGameSceneReadyAsync(
@@ -344,7 +352,11 @@ namespace YuJanggi.Server.Features.Game
                     ServerMessageType.GameStartEvent,
                     new GameStartEvent
                     {
-                        StartedAt = result.StartedAt
+                        StartedAt = result.StartedAt,
+                        TurnTimeSeconds = result.TurnTimeSeconds,
+                        TurnNumber = result.Turn.TurnNumber,
+                        CurrentTeam = result.Turn.Team,
+                        TurnDeadlineAt = result.Turn.DeadlineAt
                     });
 
             await BroadcastAsync(result.Targets, started, cancellationToken);

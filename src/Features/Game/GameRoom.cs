@@ -22,6 +22,7 @@ namespace YuJanggi.Server.Features.Game
         private GameEndProcessingResult? _engineGameEnd;
         private TurnData? _completedTurn;
         private long _lastTickTimestamp;
+        private DateTimeOffset _turnChangedAt;
         private ReadyPlayers _rematchRequestedPlayers = ReadyPlayers.None;
 
         private ReadyPlayers _readyPlayers 
@@ -36,6 +37,8 @@ namespace YuJanggi.Server.Features.Game
 
         // Handler가 SyncRoot 안에서 연결합니다. 룸별 요청과 알림의 순서를 유지합니다.
         internal Task PendingOperation { get; set; } = Task.CompletedTask;
+
+        internal float TurnTimeSeconds => NetworkTurnTime;
 
         public string MatchId { get; private set; } 
             = string.Empty;
@@ -72,6 +75,28 @@ namespace YuJanggi.Server.Features.Game
         #endregion
 
         #region Public Methods
+        internal TurnStateSnapshot GetTurnState()
+        {
+            lock (_sync)
+            {
+                var team = _state != GameRoomState.Playing
+                    ? ProtocolPlayerTeam.None
+                    : _engine.ControllerQuery.CurrentTurn switch
+                    {
+                        PlayerTeam.Cho => ProtocolPlayerTeam.Cho,
+                        PlayerTeam.Han => ProtocolPlayerTeam.Han,
+                        _ => ProtocolPlayerTeam.None
+                    };
+
+                // 번호와 차례는 Engine에서 읽고, 시각은 Client 표시용 메타데이터로만 사용합니다.
+                return new TurnStateSnapshot(
+                    _engine.References.ReadOnlyRecord.Count + 1,
+                    team,
+                    _turnChangedAt,
+                    team == ProtocolPlayerTeam.None ? null : _turnChangedAt.AddSeconds(NetworkTurnTime));
+            }
+        }
+
         internal ProtocolPlayerTeam? Tick()
         {
             lock (_sync)
@@ -141,6 +166,9 @@ namespace YuJanggi.Server.Features.Game
                 if (_state != GameRoomState.Playing)
                     return MovePieceResult.IllegalMove;
 
+                if (request.TurnNumber != _engine.References.ReadOnlyRecord.Count + 1)
+                    return MovePieceResult.StaleTurn;
+
                 var team = request.Team switch
                 {
                     ProtocolPlayerTeam.Cho => PlayerTeam.Cho,
@@ -160,12 +188,15 @@ namespace YuJanggi.Server.Features.Game
             }
         }
 
-        internal GameRequestResult ProcessPassTurn(ProtocolPlayerTeam requester)
+        internal GameRequestResult ProcessPassTurn(ProtocolPlayerTeam requester, int turnNumber)
         {
             lock (_sync)
             {
                 if (_state != GameRoomState.Playing)
                     return GameRequestResult.Failed;
+
+                if (turnNumber != _engine.References.ReadOnlyRecord.Count + 1)
+                    return GameRequestResult.StaleTurn;
 
                 var team = requester switch
                 {
@@ -274,6 +305,7 @@ namespace YuJanggi.Server.Features.Game
                 _engineGameEnd = null;
                 _completedTurn = null;
                 _lastTickTimestamp = Stopwatch.GetTimestamp();
+                _turnChangedAt = DateTimeOffset.UtcNow;
                 _state = GameRoomState.Playing;
             }
         }
@@ -292,6 +324,7 @@ namespace YuJanggi.Server.Features.Game
                     return;
 
                 _completedTurn = data;
+                _turnChangedAt = DateTimeOffset.UtcNow;
                 // 다음 Tick에 이전 턴의 경과 시간을 넘기지 않습니다.
                 _lastTickTimestamp = Stopwatch.GetTimestamp();
 

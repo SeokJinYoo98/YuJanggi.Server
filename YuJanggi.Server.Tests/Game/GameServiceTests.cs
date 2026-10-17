@@ -33,6 +33,10 @@ namespace YuJanggi.Server.Tests.Game
             Assert.AreEqual(1, results.Count(result => result is not null));
             var started = results.Single(result => result is not null)!;
             Assert.HasCount(2, started.Targets);
+            Assert.AreEqual(60f, started.TurnTimeSeconds);
+            Assert.AreEqual(1, started.Turn.TurnNumber);
+            Assert.AreEqual(ProtocolPlayerTeam.Cho, started.Turn.Team);
+            Assert.AreEqual(started.StartedAt.AddSeconds(60), started.Turn.DeadlineAt);
             Assert.AreSame(cho.Session, started.Targets[0]);
             Assert.AreSame(han.Session, started.Targets[1]);
             Assert.IsTrue(room.ChoReady);
@@ -57,10 +61,12 @@ namespace YuJanggi.Server.Tests.Game
             Assert.AreEqual(MovePieceResult.Accepted, service.ProcessMove(cho.Session,
                 new MovePieceRequest
                 {
-                    Team = ProtocolPlayerTeam.Cho, FromX = 0, FromZ = 3, ToX = 0, ToZ = 4
+                    Team = ProtocolPlayerTeam.Cho, TurnNumber = 1,
+                    FromX = 0, FromZ = 3, ToX = 0, ToZ = 4
                 }).Result);
             Assert.AreEqual(GameRequestResult.Accepted,
-                service.ProcessPassTurn(han.Session, ProtocolPlayerTeam.Han).Result);
+                service.ProcessPassTurn(han.Session,
+                    new GamePlayerRequest { Requester = ProtocolPlayerTeam.Han, TurnNumber = 2 }).Result);
 
             var engine = (IJanggiEngine)Field(room, "_engine");
             var piece = engine.References.Board.GetPiece(new Pos(0, 4));
@@ -93,7 +99,8 @@ namespace YuJanggi.Server.Tests.Game
             Assert.AreEqual(GameRequestResult.Failed,
                 service.ProcessGameEnd(han.Session, End(ProtocolPlayerTeam.Cho, 999)).Result);
             Assert.AreEqual(GameRequestResult.Failed,
-                service.ProcessPassTurn(han.Session, ProtocolPlayerTeam.Han).Result);
+                service.ProcessPassTurn(han.Session,
+                    new GamePlayerRequest { Requester = ProtocolPlayerTeam.Han, TurnNumber = 3 }).Result);
             Assert.AreEqual(MovePieceResult.IllegalMove,
                 service.ProcessMove(han.Session, new MovePieceRequest { Team = ProtocolPlayerTeam.Han }).Result);
 
@@ -194,7 +201,8 @@ namespace YuJanggi.Server.Tests.Game
             var service = new GameService(rooms);
             service.MarkPlayerReady(cho.Session);
             service.MarkPlayerReady(han.Session);
-            service.ProcessPassTurn(cho.Session, ProtocolPlayerTeam.Cho);
+            service.ProcessPassTurn(cho.Session,
+                new GamePlayerRequest { Requester = ProtocolPlayerTeam.Cho, TurnNumber = 1 });
             Assert.IsTrue(service.ProcessGiveUp(han.Session, ProtocolPlayerTeam.Han).IsGameEnded);
 
             var first = service.ProcessRematch(cho.Session, ProtocolPlayerTeam.Cho);
@@ -220,6 +228,68 @@ namespace YuJanggi.Server.Tests.Game
             Assert.IsFalse(engine.References.Turn.IsEnd);
             Assert.AreEqual(0, engine.References.ReadOnlyRecord.Count);
             Assert.AreEqual(PlayerTeam.Cho, engine.ControllerQuery.CurrentTurn);
+            var turn = room.GetTurnState();
+            Assert.AreEqual(1, turn.TurnNumber);
+            Assert.AreEqual(ProtocolPlayerTeam.Cho, turn.Team);
+            Assert.AreEqual(turn.UpdatedAt.AddSeconds(60), turn.DeadlineAt);
+        }
+
+        [TestMethod]
+        public async Task StaleMoveAndPassAreRejectedEvenWhenTheSameTeamHasTheTurnAgain()
+        {
+            using var cho = await Peer.Create();
+            using var han = await Peer.Create();
+            await using var rooms = CreateRoomManager(cho.Session, han.Session);
+            var room = rooms.CreateGameRoom("stale-turn", cho.Session, han.Session);
+            var service = new GameService(rooms);
+            service.MarkPlayerReady(cho.Session);
+            service.MarkPlayerReady(han.Session);
+
+            Assert.AreEqual(MovePieceResult.Accepted, service.ProcessMove(cho.Session,
+                new MovePieceRequest
+                {
+                    Team = ProtocolPlayerTeam.Cho, TurnNumber = 1,
+                    FromX = 0, FromZ = 3, ToX = 0, ToZ = 4
+                }).Result);
+            var passed = service.ProcessPassTurn(han.Session,
+                new GamePlayerRequest { Requester = ProtocolPlayerTeam.Han, TurnNumber = 2 });
+            Assert.AreEqual(GameRequestResult.Accepted, passed.Result);
+            Assert.IsNotNull(passed.NextTurn);
+            Assert.AreEqual(3, passed.NextTurn.TurnNumber);
+            Assert.AreEqual(ProtocolPlayerTeam.Cho, passed.NextTurn.Team);
+            Assert.AreEqual(passed.NextTurn.UpdatedAt.AddSeconds(60), passed.NextTurn.DeadlineAt);
+
+            var before = room.GetTurnState();
+            var engine = (IJanggiEngine)Field(room, "_engine");
+            foreach (int turnNumber in new[] { 0, 1, 5 })
+            {
+                var moved = service.ProcessMove(cho.Session, new MovePieceRequest
+                {
+                    Team = ProtocolPlayerTeam.Cho, TurnNumber = turnNumber,
+                    FromX = 0, FromZ = 4, ToX = 0, ToZ = 5
+                });
+                Assert.AreEqual(MovePieceResult.StaleTurn, moved.Result);
+                Assert.IsNull(moved.NextTurn);
+                Assert.IsEmpty(moved.Targets);
+
+                var stalePass = service.ProcessPassTurn(cho.Session,
+                    new GamePlayerRequest { Requester = ProtocolPlayerTeam.Cho, TurnNumber = turnNumber });
+                Assert.AreEqual(GameRequestResult.StaleTurn, stalePass.Result);
+                Assert.IsNull(stalePass.NextTurn);
+                Assert.IsEmpty(stalePass.Targets);
+                Assert.AreEqual(before, room.GetTurnState());
+                Assert.AreEqual(2, engine.References.ReadOnlyRecord.Count);
+            }
+
+            var accepted = service.ProcessMove(cho.Session, new MovePieceRequest
+            {
+                Team = ProtocolPlayerTeam.Cho, TurnNumber = 3,
+                FromX = 0, FromZ = 4, ToX = 0, ToZ = 5
+            });
+            Assert.AreEqual(MovePieceResult.Accepted, accepted.Result);
+            Assert.IsNotNull(accepted.NextTurn);
+            Assert.AreEqual(4, accepted.NextTurn.TurnNumber);
+            Assert.AreEqual(ProtocolPlayerTeam.Han, accepted.NextTurn.Team);
         }
 
         internal static GameEndRequest End(ProtocolPlayerTeam winner, int moves)
