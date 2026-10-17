@@ -2,6 +2,7 @@ namespace YuJanggi.Server.Features.Game
 {
     using Connection;
     using Core.Sessions;
+    using Engine.Domain;
 
     /// <summary>게임룸 컬렉션의 생성, 조회, 제거를 관리합니다.</summary>
     internal sealed class GameRoomManager : IAsyncDisposable
@@ -28,9 +29,14 @@ namespace YuJanggi.Server.Features.Game
                 return _gameRooms.Values.ToArray();
         }
 
-        public GameRoom CreateGameRoom(string matchId, IClientSession choPlayer, IClientSession hanPlayer)
+        public GameRoom CreateGameRoom(
+            string matchId,
+            IClientSession choPlayer,
+            IClientSession hanPlayer,
+            Formation choFormation = Formation.EHHE,
+            Formation hanFormation = Formation.EHHE)
         {
-            var room = new GameRoom();
+            var room = new GameRoom(choFormation, hanFormation);
             room.Initialize(matchId, choPlayer, hanPlayer);
             lock (_roomSync)
             {

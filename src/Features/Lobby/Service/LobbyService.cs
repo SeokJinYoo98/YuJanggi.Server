@@ -190,7 +190,8 @@ namespace YuJanggi.Server.Features.Lobby
             try
             {
                 _gameRoomManager.CreateGameRoom(state.MatchId!,
-                    state.Players.First, state.Players.Second);
+                    state.Players.First, state.Players.Second,
+                    state.ChoFormation!.Value, state.HanFormation!.Value);
                 state.MarkGameTransitionCompleted();
             }
             catch

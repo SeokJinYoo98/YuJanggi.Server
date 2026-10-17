@@ -1,18 +1,28 @@
 namespace YuJanggi.Server.Features.Game
 {
-    using Connection;
+    using System.Diagnostics;
     using Core.Sessions;
+    using Engine.Domain;
+    using Engine.JanggiEngine;
+    using Engine.JanggiOption;
+    using Protocol.InGame;
+    using Protocol.Matching;
     using State;
 
 
     /// <summary>한 대국의 두 참가자와 네트워크 룸의 준비·시작·종료 상태를 소유합니다.</summary>
     internal sealed class GameRoom
     {
+        // 현재 온라인 대국의 제한시간은 Unity CreateNetwork 설정과 같은 60초입니다.
+        private const float NetworkTurnTime = 60f;
+
         #region Fields
         private readonly Lock _sync = new();
-        private GameEndSubmittedPlayers _gameEndSubmittedPlayers = GameEndSubmittedPlayers.None;
-        private GameEndSubmission? _choGameEndSubmission;
-        private GameEndSubmission? _hanGameEndSubmission;
+        private readonly IJanggiEngine _engine;
+        private GameEndProcessingResult? _engineGameEnd;
+        private TurnData? _completedTurn;
+        private long _lastTickTimestamp;
+        private DateTimeOffset _turnChangedAt;
         private ReadyPlayers _rematchRequestedPlayers = ReadyPlayers.None;
 
         private ReadyPlayers _readyPlayers 
@@ -25,6 +35,11 @@ namespace YuJanggi.Server.Features.Game
         internal Lock SyncRoot
             => _sync;
 
+        // Handler가 SyncRoot 안에서 연결합니다. 룸별 요청과 알림의 순서를 유지합니다.
+        internal Task PendingOperation { get; set; } = Task.CompletedTask;
+
+        internal float TurnTimeSeconds => NetworkTurnTime;
+
         public string MatchId { get; private set; } 
             = string.Empty;
 
@@ -32,14 +47,12 @@ namespace YuJanggi.Server.Features.Game
         public IClientSession? HanPlayer { get; private set; }
 
         public GameRoomState State { get { lock (_sync) return _state; } }
+        public bool HasEngineGameResult { get { lock (_sync) return _engineGameEnd is not null; } }
+        internal GameEndProcessingResult? EngineGameEnd { get { lock (_sync) return _engineGameEnd; } }
 
         public bool ChoReady { get { lock (_sync) return (_readyPlayers & ReadyPlayers.Cho) != 0; } }
         public bool HanReady { get { lock (_sync) return (_readyPlayers & ReadyPlayers.Han) != 0; } }
         public bool AllReady { get { lock (_sync) return _readyPlayers == ReadyPlayers.All; } }
-        public bool AllGameEndSubmitted
-        {
-            get { lock (_sync) return _gameEndSubmittedPlayers == GameEndSubmittedPlayers.All; }
-        }
 
         public bool Started 
             => State == GameRoomState.Playing;
@@ -47,7 +60,73 @@ namespace YuJanggi.Server.Features.Game
             => State == GameRoomState.Closed;
         #endregion
 
+        #region Constructors
+        public GameRoom(Formation choFormation, Formation hanFormation)
+        {
+            _engine = JanggiEngineFactory.CreateEngine(new JanggiOptions
+            {
+                ChoFormation = choFormation,
+                HanFormation = hanFormation,
+                TurnTime = NetworkTurnTime
+            });
+            _engine.References.GameEvents.OnTurnCompleted += HandleTurnCompleted;
+            _engine.BindEvents();
+        }
+        #endregion
+
         #region Public Methods
+        internal TurnStateSnapshot GetTurnState()
+        {
+            lock (_sync)
+            {
+                var team = _state != GameRoomState.Playing
+                    ? ProtocolPlayerTeam.None
+                    : _engine.ControllerQuery.CurrentTurn switch
+                    {
+                        PlayerTeam.Cho => ProtocolPlayerTeam.Cho,
+                        PlayerTeam.Han => ProtocolPlayerTeam.Han,
+                        _ => ProtocolPlayerTeam.None
+                    };
+
+                // 번호와 차례는 Engine에서 읽고, 시각은 Client 표시용 메타데이터로만 사용합니다.
+                return new TurnStateSnapshot(
+                    _engine.References.ReadOnlyRecord.Count + 1,
+                    team,
+                    _turnChangedAt,
+                    team == ProtocolPlayerTeam.None ? null : _turnChangedAt.AddSeconds(NetworkTurnTime));
+            }
+        }
+
+        internal ProtocolPlayerTeam? Tick()
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Playing)
+                    return null;
+
+                long now = Stopwatch.GetTimestamp();
+                float deltaTime = (float)Stopwatch.GetElapsedTime(_lastTickTimestamp, now).TotalSeconds;
+                _lastTickTimestamp = now;
+
+                // 요청으로 완료된 턴을 재전송하지 않고 이번 Tick의 결과만 회수합니다.
+                _completedTurn = null;
+                try
+                {
+                    _engine.Tick(deltaTime);
+                    return _completedTurn?.ActingTeam switch
+                    {
+                        PlayerTeam.Cho => ProtocolPlayerTeam.Cho,
+                        PlayerTeam.Han => ProtocolPlayerTeam.Han,
+                        _ => null
+                    };
+                }
+                finally
+                {
+                    _completedTurn = null;
+                }
+            }
+        }
+
         public void Initialize(string matchId, IClientSession choPlayer, IClientSession hanPlayer)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(matchId);
@@ -80,21 +159,95 @@ namespace YuJanggi.Server.Features.Game
             return null;
         }
 
-        /// <summary>이후 준비·시작을 차단합니다. 연결의 해제는 서버가 담당합니다.</summary>
-        public void Close()
-        {
-            lock (_sync)
-                _state = GameRoomState.Closed;
-        }
-        internal bool TryEndByGiveUp()
+        internal MovePieceResult ProcessMove(MovePieceRequest request)
         {
             lock (_sync)
             {
                 if (_state != GameRoomState.Playing)
-                    return false;
+                    return MovePieceResult.IllegalMove;
 
+                if (request.TurnNumber != _engine.References.ReadOnlyRecord.Count + 1)
+                    return MovePieceResult.StaleTurn;
+
+                var team = request.Team switch
+                {
+                    ProtocolPlayerTeam.Cho => PlayerTeam.Cho,
+                    ProtocolPlayerTeam.Han => PlayerTeam.Han,
+                    _ => PlayerTeam.None
+                };
+
+                // Engine 이동 API에는 요청 팀 인자가 없으므로 Engine의 현재 차례와 대조합니다.
+                if (team == PlayerTeam.None || _engine.ControllerQuery.CurrentTurn != team)
+                    return MovePieceResult.NotYourTurn;
+
+                return _engine.TryProcessTurn(
+                    new Pos(request.FromX, request.FromZ),
+                    new Pos(request.ToX, request.ToZ))
+                    ? MovePieceResult.Accepted
+                    : MovePieceResult.IllegalMove;
+            }
+        }
+
+        internal GameRequestResult ProcessPassTurn(ProtocolPlayerTeam requester, int turnNumber)
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Playing)
+                    return GameRequestResult.Failed;
+
+                if (turnNumber != _engine.References.ReadOnlyRecord.Count + 1)
+                    return GameRequestResult.StaleTurn;
+
+                var team = requester switch
+                {
+                    ProtocolPlayerTeam.Cho => PlayerTeam.Cho,
+                    ProtocolPlayerTeam.Han => PlayerTeam.Han,
+                    _ => PlayerTeam.None
+                };
+
+                if (team == PlayerTeam.None || _engine.ControllerQuery.CurrentTurn != team)
+                    return GameRequestResult.Failed;
+
+                _engine.HandleHandicap();
+                return GameRequestResult.Accepted;
+            }
+        }
+
+        /// <summary>이후 준비·시작을 차단합니다. 연결의 해제는 서버가 담당합니다.</summary>
+        public void Close()
+        {
+            lock (_sync)
+            {
+                _state = GameRoomState.Closed;
+                _engine.EndEngine();
+                _engine.UnBindEvents();
+                _engine.References.GameEvents.OnTurnCompleted -= HandleTurnCompleted;
+                _completedTurn = null;
+            }
+        }
+        internal GameEndProcessingResult ProcessGiveUp(ProtocolPlayerTeam requester)
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Playing ||
+                    requester is not (ProtocolPlayerTeam.Cho or ProtocolPlayerTeam.Han))
+                    return new(GameRequestResult.Failed, false, MatchId,
+                        ProtocolPlayerTeam.None, 0, Array.Empty<IClientSession>());
+
+                var winner = requester == ProtocolPlayerTeam.Cho
+                    ? ProtocolPlayerTeam.Han
+                    : ProtocolPlayerTeam.Cho;
+
+                _engine.EndEngine();
                 _state = GameRoomState.Ended;
-                return true;
+                return new(
+                    GameRequestResult.Accepted,
+                    true,
+                    MatchId,
+                    winner,
+                    _engine.References.ReadOnlyRecord.Count,
+                    Array.Empty<IClientSession>(),
+                    ProtocolGameEndReason.GiveUp);
             }
         }
         #endregion
@@ -116,58 +269,7 @@ namespace YuJanggi.Server.Features.Game
 
                 _rematchRequestedPlayers = ReadyPlayers.None;
                 _readyPlayers = ReadyPlayers.None;
-                _gameEndSubmittedPlayers = GameEndSubmittedPlayers.None;
-                _choGameEndSubmission = null;
-                _hanGameEndSubmission = null;
                 _state = GameRoomState.WaitingForReady;
-                return true;
-            }
-        }
-
-        internal bool HasSubmittedGameEnd(IClientSession session)
-            => GetGameEndSubmission(session) is not null;
-
-        internal GameEndSubmission? GetGameEndSubmission(IClientSession session)
-        {
-            ArgumentNullException.ThrowIfNull(session);
-            lock (_sync)
-            {
-                if (ChoPlayer?.ClientId == session.ClientId)
-                    return _choGameEndSubmission;
-                if (HanPlayer?.ClientId == session.ClientId)
-                    return _hanGameEndSubmission;
-                throw new InvalidOperationException("룸 참가자가 아닙니다.");
-            }
-        }
-
-        internal void MarkGameEndSubmitted(IClientSession session, GameEndSubmission submission)
-        {
-            ArgumentNullException.ThrowIfNull(submission);
-            lock (_sync)
-            {
-                if (_state != GameRoomState.Playing || HasSubmittedGameEnd(session))
-                    throw new InvalidOperationException("게임 종료 결과를 제출할 수 없습니다.");
-                if (ChoPlayer!.ClientId == session.ClientId)
-                {
-                    _choGameEndSubmission = submission;
-                    _gameEndSubmittedPlayers |= GameEndSubmittedPlayers.Cho;
-                }
-                else
-                {
-                    _hanGameEndSubmission = submission;
-                    _gameEndSubmittedPlayers |= GameEndSubmittedPlayers.Han;
-                }
-            }
-        }
-
-        internal bool TryMarkEnded()
-        {
-            lock (_sync)
-            {
-                if (_state != GameRoomState.Playing || !AllGameEndSubmitted ||
-                    _choGameEndSubmission != _hanGameEndSubmission)
-                    return false;
-                _state = GameRoomState.Ended;
                 return true;
             }
         }
@@ -196,6 +298,14 @@ namespace YuJanggi.Server.Features.Game
             {
                 if (_state != GameRoomState.WaitingForReady || _readyPlayers != ReadyPlayers.All)
                     throw new InvalidOperationException("시작할 수 없는 게임룸입니다.");
+
+                if (!_engine.InitEngine() || !_engine.StartEngine())
+                    throw new InvalidOperationException("게임 Engine을 시작할 수 없습니다.");
+
+                _engineGameEnd = null;
+                _completedTurn = null;
+                _lastTickTimestamp = Stopwatch.GetTimestamp();
+                _turnChangedAt = DateTimeOffset.UtcNow;
                 _state = GameRoomState.Playing;
             }
         }
@@ -206,6 +316,49 @@ namespace YuJanggi.Server.Features.Game
         #endregion
 
         #region Event Handlers
+        private void HandleTurnCompleted(TurnData data)
+        {
+            lock (_sync)
+            {
+                if (_state != GameRoomState.Playing)
+                    return;
+
+                _completedTurn = data;
+                _turnChangedAt = DateTimeOffset.UtcNow;
+                // 다음 Tick에 이전 턴의 경과 시간을 넘기지 않습니다.
+                _lastTickTimestamp = Stopwatch.GetTimestamp();
+
+                if (_engineGameEnd is not null ||
+                    data.GameResult is not { } gameResult)
+                    return;
+
+                var winner = gameResult.Winner switch
+                {
+                    PlayerTeam.Cho => ProtocolPlayerTeam.Cho,
+                    PlayerTeam.Han => ProtocolPlayerTeam.Han,
+                    PlayerTeam.None => ProtocolPlayerTeam.None,
+                    _ => throw new InvalidOperationException("지원하지 않는 Engine 승자입니다.")
+                };
+                var endReason = gameResult.Type switch
+                {
+                    GameResult.Draw => ProtocolGameEndReason.Draw,
+                    GameResult.CheckMate => ProtocolGameEndReason.CheckMate,
+                    GameResult.GiveUp => ProtocolGameEndReason.GiveUp,
+                    GameResult.Score => ProtocolGameEndReason.Score,
+                    _ => throw new InvalidOperationException("지원하지 않는 Engine 종료 사유입니다.")
+                };
+
+                _engineGameEnd = new GameEndProcessingResult(
+                    GameRequestResult.Accepted,
+                    true,
+                    MatchId,
+                    winner,
+                    _engine.References.ReadOnlyRecord.Count,
+                    Array.Empty<IClientSession>(),
+                    endReason);
+                _state = GameRoomState.Ended;
+            }
+        }
         #endregion
     }
 }
