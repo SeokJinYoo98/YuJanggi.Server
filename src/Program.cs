@@ -10,7 +10,9 @@
             { 
                 if (args.Length != 0)
                 {
-                    Environment.ExitCode = await DatabaseUserLookup.RunAsync(args);
+                    Environment.ExitCode = args[0] == "--google-login"
+                        ? await GoogleLoginDiagnostic.RunAsync(args)
+                        : await DatabaseUserLookup.RunAsync(args);
                     return;
                 }
 
