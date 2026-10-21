@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+	  <PackageReference Include="Npgsql" Version="10.0.3" />
 	  <PackageReference Include="YuJanggi.Protocol" Version="1.8.0" />
 	  <PackageReference Include="YuJanggi.Engine" Version="2.8.4" />
   </ItemGroup>

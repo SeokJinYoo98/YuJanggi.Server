@@ -1,18 +1,23 @@
 ﻿namespace YuJanggi.Server
 {
+    using Diagnostics;
     using Server;
     public static class Program
     {
-        private static readonly YuJanggiServer _server 
-            = new YuJanggiServer();
-         
-        public static async Task Main()
+        public static async Task Main(string[] args)
         {
             try
             { 
+                if (args.Length != 0)
+                {
+                    Environment.ExitCode = await DatabaseUserLookup.RunAsync(args);
+                    return;
+                }
+
+                var server = new YuJanggiServer();
                 View.NetworkView.ShowCommands();
-                Task serverTask = _server.RunAsync();
-                await ReadCommandsAsync(serverTask);
+                Task serverTask = server.RunAsync();
+                await ReadCommandsAsync(server, serverTask);
             }
             catch (Exception exception)
             {
@@ -21,7 +26,7 @@
             }
         }
 
-        private static async Task ReadCommandsAsync(Task serverTask)
+        private static async Task ReadCommandsAsync(YuJanggiServer server, Task serverTask)
         {
             while (!serverTask.IsCompleted)
             {
@@ -36,7 +41,7 @@
                 if (string.Equals(input.Trim(), "Clear", StringComparison.OrdinalIgnoreCase))
                     View.NetworkView.ClearAndShowCommands();
                 else if (string.Equals(input.Trim(), "Rooms", StringComparison.OrdinalIgnoreCase))
-                    _server.ShowRooms();
+                    server.ShowRooms();
             }
 
             await serverTask;
