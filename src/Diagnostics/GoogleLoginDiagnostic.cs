@@ -2,17 +2,33 @@ using Google.Apis.Auth;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
 using Google.Apis.Auth.OAuth2.Responses;
+using Npgsql;
 using System.Text.Json;
 
 namespace YuJanggi.Server.Diagnostics
 {
+    using Features.Login.Persistence;
+
     internal static class GoogleLoginDiagnostic
     {
+        private const string ConnectionStringVariable = "YUJANGGI_DATABASE_CONNECTION_STRING";
+
         public static async Task<int> RunAsync(string[] args)
         {
-            if (args.Length != 2 || string.IsNullOrWhiteSpace(args[1]))
+            if ((args.Length != 2 && args.Length != 3)
+                || args[0] != "--google-login"
+                || string.IsNullOrWhiteSpace(args[1])
+                || (args.Length == 3 && args[2] != "--save-user"))
             {
-                Console.Error.WriteLine("사용법: --google-login <데스크톱 OAuth JSON 파일 경로>");
+                Console.Error.WriteLine("사용법: --google-login <데스크톱 OAuth JSON 파일 경로> [--save-user]");
+                return 1;
+            }
+
+            bool saveUser = args.Length == 3;
+            string? connectionString = Environment.GetEnvironmentVariable(ConnectionStringVariable);
+            if (saveUser && string.IsNullOrWhiteSpace(connectionString))
+            {
+                Console.Error.WriteLine($"{ConnectionStringVariable} 환경 변수를 설정해 주세요.");
                 return 1;
             }
 
@@ -69,7 +85,24 @@ namespace YuJanggi.Server.Diagnostics
                 Console.WriteLine("구글 로그인 / ID 토큰 검증 완료");
                 Console.WriteLine($"google_sub: {identity.Subject}");
                 Console.WriteLine($"name: {identity.Name}");
-                Console.WriteLine("DB 저장과 게임 세션 연결은 아직 수행하지 않습니다.");
+
+                if (!saveUser)
+                {
+                    Console.WriteLine("DB 사용자를 생성 / 조회하려면 --save-user 옵션을 추가해 주세요.");
+                    return 0;
+                }
+
+                await using var dataSource = NpgsqlDataSource.Create(connectionString!);
+                var repository = new PostgresUserRepository(dataSource);
+                string initialNickname = string.IsNullOrWhiteSpace(identity.Name) ? "플레이어" : identity.Name;
+                UserAccount user = await repository.GetOrCreateByGoogleSubAsync(
+                    identity.Subject, initialNickname, cancellation.Token);
+
+                Console.WriteLine("DB 사용자 생성 / 조회 완료");
+                Console.WriteLine($"id: {user.Id}");
+                Console.WriteLine($"nickname: {user.Nickname}");
+                Console.WriteLine($"created_at: {user.CreatedAt:O}");
+                Console.WriteLine("게임 세션 연결은 아직 수행하지 않습니다.");
                 return 0;
             }
             catch (OperationCanceledException)
@@ -85,6 +118,16 @@ namespace YuJanggi.Server.Diagnostics
             catch (TokenResponseException)
             {
                 Console.Error.WriteLine("구글 인증이 완료되지 않았습니다. 브라우저의 오류와 테스트 사용자 설정을 확인해 주세요.");
+                return 1;
+            }
+            catch (PostgresException exception)
+            {
+                Console.Error.WriteLine($"DB 사용자 처리에 실패했습니다 (SQLSTATE: {exception.SqlState}). DB 인증 정보와 users 테이블을 확인해 주세요.");
+                return 1;
+            }
+            catch (NpgsqlException)
+            {
+                Console.Error.WriteLine("DB 연결 또는 통신에 실패했습니다. PostgreSQL 실행 상태와 연결 설정을 확인해 주세요.");
                 return 1;
             }
             catch (Exception exception)
